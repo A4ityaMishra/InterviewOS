@@ -1,0 +1,156 @@
+{
+ "id": "dd630613e188418692c8dafc950d4d18",
+ "role": "Generative AI Engineer",
+ "duration_min": 20,
+ "jd_present": true,
+ "created_at": 1784008010.4463842,
+ "status": "completed",
+ "messages": [
+  {
+   "speaker": "agent",
+   "text": "Hi there! I'm Sarah, and I'm excited to chat with you today. Can you start by telling me a bit about yourself and your background?",
+   "ts": 1784008015.095315
+  },
+  {
+   "speaker": "candidate",
+   "text": "Uh, yeah. I am a third-year college student. I have, uh, two previous internships, one in full-stack development and one in, uh, generative AI solutions.",
+   "ts": 1784008035.0113
+  },
+  {
+   "speaker": "agent",
+   "text": "That sounds great! It’s nice to hear you have experience in both full-stack development and generative AI. Can you share a bit more about what you worked on during your generative AI internship?",
+   "ts": 1784008037.266559
+  },
+  {
+   "speaker": "candidate",
+   "text": "Uh, mostly automating workflows for the pre-sales department. Uh, basically, they got a lot of inquiries, and we automated the entire workflow, uh, with human in the loop, uh, uh,",
+   "ts": 1784008061.062312
+  },
+  {
+   "speaker": "agent",
+   "text": "Interesting!",
+   "ts": 1784008062.486441,
+   "interrupted": true
+  },
+  {
+   "speaker": "candidate",
+   "text": "In, in the pipeline, so that the humans could review what the gen AI is doing, and then they still have the final word in whether or not to approve the actions.",
+   "ts": 1784008075.9068658
+  },
+  {
+   "speaker": "agent",
+   "text": "Got it! So you implemented a human-in-the-loop system for the automation. How did you ensure the quality and reliability of the AI's outputs in that workflow?",
+   "ts": 1784008079.2358441
+  },
+  {
+   "speaker": "candidate",
+   "text": "Uh, we had pretty tight prompting, and we also, uh, ran a bunch of tests with ourselves and also end users.",
+   "ts": 1784008098.45445
+  },
+  {
+   "speaker": "agent",
+   "text": "That makes sense. Can you elaborate on the types of tests you ran? What metrics or feedback did you focus on to evaluate the performance of the AI?",
+   "ts": 1784008100.951613
+  },
+  {
+   "speaker": "candidate",
+   "text": "Uh, whether or not it was able to extract information correctly from the inquiries, whether or not it was correctly pricing the SKUs asked for in the inquiries, things like that.",
+   "ts": 1784008123.641782
+  },
+  {
+   "speaker": "agent",
+   "text": "Interesting focus areas. How did you handle cases where the AI made mistakes or provided incorrect information? What steps did you take to improve its performance?",
+   "ts": 1784008125.419549
+  },
+  {
+   "speaker": "candidate",
+   "text": "Uh, just heavier prompting, I guess.",
+   "ts": 1784008139.729124
+  },
+  {
+   "speaker": "agent",
+   "text": "Heavier prompting can definitely help. Were there any specific techniques or strategies you found particularly effective in your prompt engineering?",
+   "ts": 1784008141.658685
+  },
+  {
+   "speaker": "candidate",
+   "text": "Uh, nothing to note of now.",
+   "ts": 1784008154.1930351
+  },
+  {
+   "speaker": "agent",
+   "text": "That's alright! Let's shift gears a bit. I noticed you mentioned working with generative AI. Can you tell me about your experience with Large Language Models, like which ones you've worked with and how you integrated them into your projects?",
+   "ts": 1784008155.972123
+  },
+  {
+   "speaker": "candidate",
+   "text": "Uh, I've used a bunch of ChatGPT models. I have also used, uh, DeepSeek models. Um...",
+   "ts": 1784008178.7993238
+  },
+  {
+   "speaker": "agent",
+   "text": "Great! ChatGPT is quite popular. Can you describe how you utilized these models in your projects? What specific tasks did they help you with?",
+   "ts": 1784008181.296611
+  },
+  {
+   "speaker": "candidate",
+   "text": "And yeah.",
+   "ts": 1784008181.813215
+  },
+  {
+   "speaker": "agent",
+   "text": "Could you share a bit more detail about the tasks? For example, were they used for generating text, answering queries, or something else?",
+   "ts": 1784008183.500701
+  },
+  {
+   "speaker": "candidate",
+   "text": "(swooshing sound)",
+   "ts": 1784008193.565656
+  },
+  {
+   "speaker": "agent",
+   "text": "It seems like you might be thinking. No rush, but if you can share any examples of how you used those models, that would be great!",
+   "ts": 1784008195.189887
+  },
+  {
+   "speaker": "candidate",
+   "text": "Uh, yeah, we had a chatbot system in place in the pre-sales licensing software, where if you had any questions, you could just query the chatbot, it would answer.",
+   "ts": 1784008217.3508632
+  },
+  {
+   "speaker": "agent",
+   "text": "That sounds useful! How did you ensure that the chatbot provided accurate and relevant responses? Did you implement any specific techniques or feedback mechanisms?",
+   "ts": 1784008219.245735
+  },
+  {
+   "speaker": "candidate",
+   "text": "Um, it would also generate emails.",
+   "ts": 1784008220.6124642
+  },
+  {
+   "speaker": "agent",
+   "text": "Generating emails is a practical application! How did you manage the tone and style of the emails generated by the chatbot to ensure they aligned with your company's communication standards?",
+   "ts": 1784008222.474459
+  },
+  {
+   "speaker": "candidate",
+   "text": "Okay. Uh, let's end the interview for now.",
+   "ts": 1784008244.636888
+  },
+  {
+   "speaker": "agent",
+   "text": "Sure, I understand. If you have any questions or anything else you'd like to discuss before we wrap up, feel free to share!",
+   "ts": 1784008246.4884338
+  },
+  {
+   "speaker": "candidate",
+   "text": "Nothing for now.",
+   "ts": 1784008258.225589
+  },
+  {
+   "speaker": "agent",
+   "text": "Alright, thank you for your time today! We'll be in touch soon with the next steps via email. Have a great day! Goodbye!",
+   "ts": 1784008260.071339
+  }
+ ]
+}

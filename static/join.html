@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interview</title>
+<link rel="stylesheet" href="/static/theme.css?v=3">
+<link rel="stylesheet" href="/static/call.css?v=1">
+<style>
+  main { display: flex; flex-direction: column; align-items: center; padding: clamp(28px, 8vh, 88px) 20px 60px; }
+
+  .card { width: 100%; max-width: 480px; background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-2); padding: 40px; text-align: center; }
+  .card .role-pill { display: inline-block; background: var(--fill); color: var(--text-2); font-size: .8rem; font-weight: 600; padding: 6px 14px; border-radius: 999px; margin-bottom: 18px; }
+  .card h1 { font-size: 1.55rem; margin-bottom: 10px; }
+  .card p { color: var(--text-2); margin-bottom: 28px; line-height: 1.5; }
+  .card .checks { text-align: left; display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
+  .card .checks div { display: flex; align-items: center; gap: 10px; font-size: .88rem; color: var(--text-2); }
+  .card .checks svg { flex: none; color: var(--green-deep); }
+  .err { color: var(--red-deep); font-size: .88rem; margin-top: 14px; }
+</style>
+</head>
+<body>
+  <header class="topnav">
+    <a class="brand" href="/" style="pointer-events:none;">
+      <span class="mark">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+          <path d="M12 2a4 4 0 0 1 4 4v5a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/>
+        </svg>
+      </span>
+      IDC Interviewer
+    </a>
+    <div class="spacer"></div>
+  </header>
+
+  <main>
+    <section class="card" id="lobby">
+      <span class="role-pill" id="role-pill">Loading…</span>
+      <h1>You're about to start your interview</h1>
+      <p>This will be a short spoken conversation with an AI interviewer. Find a quiet spot and make sure your microphone is working.</p>
+      <div class="checks">
+        <div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg> No coding — this is a conversational interview</div>
+        <div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg> Takes about <span id="dur-text">20</span> minutes</div>
+        <div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg> You'll be asked to allow microphone access</div>
+      </div>
+      <button id="start" class="btn-primary" style="width:100%;">Join interview</button>
+      <div class="err" id="err" hidden></div>
+    </section>
+
+    <section id="call" hidden class="panel-open">
+      <div class="callwrap">
+        <div class="stage" id="stage">
+          <div class="stage-status">
+            <span class="dot" aria-hidden="true"></span>
+            <span id="state" role="status" aria-live="polite">Connecting…</span>
+            <span id="timer">00:00</span>
+          </div>
+
+          <div class="agent-visual">
+            <div class="avatar-wrap">
+              <div class="ring"></div>
+              <div class="ring r2"></div>
+              <div class="avatar" id="avatar">S</div>
+            </div>
+            <div class="agent-name">
+              <b id="agent-name">Sarah</b>
+              <span>AI Interviewer</span>
+            </div>
+          </div>
+
+          <div class="captions" id="caption" aria-live="off"></div>
+
+          <div class="self-tile" id="self-tile">
+            <svg class="you-icon" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+              <circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/>
+            </svg>
+            <svg class="mute-x" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2 2l20 20"/><path d="M12 2a4 4 0 0 1 4 4v5"/><path d="M5 11a7 7 0 0 0 11.4 5.4M12 18v4"/></svg>
+            <span class="tag">You</span>
+            <div class="mic-meter" id="mic-meter" aria-hidden="true"><i></i><i></i><i></i></div>
+          </div>
+
+          <div class="controlbar">
+            <button class="rbtn" id="mute" aria-pressed="false" aria-label="Mute microphone">
+              <svg class="on" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M12 2a4 4 0 0 1 4 4v5a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/></svg>
+              <svg class="off" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M2 2l20 20"/><path d="M12 2a4 4 0 0 1 4 4v5"/><path d="M5 11a7 7 0 0 0 11.4 5.4M12 18v4"/></svg>
+              <small>Mute</small>
+            </button>
+            <button class="rbtn active" id="panel-toggle" aria-pressed="true" aria-label="Toggle transcript panel">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <small>Transcript</small>
+            </button>
+            <button class="rbtn hangup" id="end-call" aria-label="End interview">
+              <svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .4-.23.74-.56.9-.98.49-1.87 1.12-2.67 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.47 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.1-.7-.28-.8-.73-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+              <small>End</small>
+            </button>
+          </div>
+        </div>
+
+        <aside class="panel" aria-label="Conversation transcript">
+          <header>
+            <span>Transcript</span>
+            <span class="live">LIVE</span>
+          </header>
+          <div id="log"></div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="card" id="done" hidden>
+      <svg width="54" height="54" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" style="margin-bottom: 14px;">
+        <circle cx="12" cy="12" r="10"/><path d="M8 12.5l2.5 2.5L16 9.5"/>
+      </svg>
+      <h1 id="done-title">Interview complete</h1>
+      <p id="done-sub">Thanks for your time — the team will review the conversation and follow up by email.</p>
+    </section>
+  </main>
+
+  <script src="/static/call.js?v=2"></script>
+  <script src="/static/join.js?v=1"></script>
+</body>
+</html>

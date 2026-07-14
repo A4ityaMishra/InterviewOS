@@ -1,0 +1,21 @@
+{
+ "id": "bd5cf9fc76ac42b09c99b46ba65b2277",
+ "role": "Backend Software Engineer",
+ "duration_min": 20,
+ "jd_present": false,
+ "created_at": 1783943849.8645508,
+ "status": "live",
+ "messages": [
+  {
+   "speaker": "candidate",
+   "text": "You have two internships where you worked with Python and Najango building Angular base.",
+   "ts": 1783943857.0295098
+  },
+  {
+   "speaker": "agent",
+   "text": "Hi there!",
+   "ts": 1783943858.084733,
+   "interrupted": true
+  }
+ ]
+}

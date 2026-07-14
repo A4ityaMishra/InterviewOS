@@ -1,0 +1,17 @@
+Backend Engineer
+
+Role: Backend Engineer
+Experience level: ~4 years
+Stack: Python, distributed systems, REST/gRPC APIs, Postgres, Redis, cloud infra (AWS or GCP)
+
+Responsibilities:
+- Design and build backend services handling high request volume (10k+ req/s at peak)
+- Work on distributed systems problems: rate limiting, caching, consistency, concurrency
+- Debug production issues independently, including performance and memory problems
+- Participate in system design discussions and justify tradeoffs
+
+Required competencies:
+1. System design — can design a service under real constraints (throughput, latency, consistency), and adapt the design when constraints change.
+2. Concurrency & correctness — understands race conditions, locking strategies, and Python-specific concurrency behavior (GIL, threading vs multiprocessing vs asyncio).
+3. Debugging methodology — can describe a structured approach to diagnosing a production issue (e.g., a memory leak), grounded in real tools and real experience.
+4. Tradeoff reasoning — can articulate why one approach was chosen over another, including the downsides of their own chosen approach.

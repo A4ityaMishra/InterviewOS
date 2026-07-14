@@ -1,0 +1,31 @@
+{
+ "id": "d1da1a1b03034d17aaf964e4c35279bd",
+ "role": "Backend Engineer",
+ "duration_min": 20,
+ "jd_present": true,
+ "created_at": 1783940249.855985,
+ "status": "completed",
+ "messages": [
+  {
+   "speaker": "agent",
+   "text": "Hi, I am Maya. Thanks for joining today — could you start with a quick introduction?",
+   "ts": 1783940249.857038
+  },
+  {
+   "speaker": "candidate",
+   "text": "Sure! I am a backend engineer with five years of experience, mostly Python and Postgres.",
+   "ts": 1783940249.857155
+  },
+  {
+   "speaker": "agent",
+   "text": "Great. Tell me about a time you had to optimize a slow database query.",
+   "ts": 1783940249.857256,
+   "interrupted": true
+  },
+  {
+   "speaker": "candidate",
+   "text": "We had a dashboard query scanning millions of rows...",
+   "ts": 1783940249.857356
+  }
+ ]
+}

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IDC Interviewer — Ops Dashboard</title>
+<link rel="stylesheet" href="/static/theme.css?v=3">
+<style>
+  body { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+  .shell { display: grid; grid-template-columns: 392px 1fr; flex: 1; min-height: 0; }
+  @media (max-width: 900px) { .shell { grid-template-columns: 1fr; } .shell.viewing aside { display: none; } }
+
+  aside {
+    background: var(--bg);
+    border-right: .5px solid var(--hairline);
+    display: flex; flex-direction: column; min-height: 0;
+    padding: 22px 0 0;
+  }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 0 22px 18px; }
+  .stat {
+    border-radius: var(--radius);
+    padding: 15px 16px 13px;
+    background: var(--surface);
+    box-shadow: var(--shadow-1);
+    transition: transform .25s var(--ease), box-shadow .25s var(--ease);
+  }
+  .stat:hover { transform: translateY(-1px); box-shadow: var(--shadow-2); }
+  .stat b { display: block; font-size: 1.65rem; font-weight: 700; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .stat span { font-size: .68rem; font-weight: 600; letter-spacing: .05em; color: var(--text-3); text-transform: uppercase; }
+  .stat.live-stat b { color: var(--green-deep); }
+  .stat.done-stat b { color: var(--blue); }
+
+  .search { padding: 0 22px 14px; }
+  .search input {
+    width: 100%; background: var(--fill-2); border: 1px solid transparent; border-radius: 10px;
+    color: var(--text); padding: 9px 14px; font-size: .9rem;
+    transition: background .2s var(--ease), border-color .2s var(--ease), box-shadow .2s var(--ease);
+  }
+  .search input:focus { background: var(--surface); border-color: var(--blue); box-shadow: 0 0 0 4px rgba(0,113,227,.14); outline: none; }
+
+  #sessions { overflow-y: auto; flex: 1; padding: 0 14px 20px; display: flex; flex-direction: column; gap: 3px; }
+  .item {
+    text-align: left; width: 100%;
+    background: transparent; border: 0; border-radius: var(--radius-sm);
+    color: var(--text); padding: 11px 12px;
+    display: flex; align-items: center; gap: 12px;
+    transition: background .18s var(--ease);
+  }
+  .item:hover { background: rgba(0, 0, 0, .045); }
+  .item.active { background: var(--surface); box-shadow: var(--shadow-1); }
+  .item .av {
+    flex: none; width: 40px; height: 40px; border-radius: 50%;
+    display: grid; place-items: center; font-weight: 600; font-size: .88rem; color: #fff;
+  }
+  .item .info { min-width: 0; flex: 1; }
+  .item .role { font-weight: 600; font-size: .9rem; letter-spacing: -.012em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item .meta { font-size: .76rem; color: var(--text-3); display: flex; gap: 7px; font-variant-numeric: tabular-nums; margin-top: 1px; }
+  .item .badge { flex: none; }
+  .badge.live::before { animation: pulse-dot 1.2s infinite alternate; }
+  @keyframes pulse-dot { to { opacity: .35; } }
+  .empty { color: var(--text-3); text-align: center; padding: 40px 24px; font-size: .9rem; }
+
+  section.view { display: flex; flex-direction: column; min-height: 0; background: var(--surface); }
+  .view > header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 16px max(22px, 3vw); border-bottom: .5px solid var(--hairline);
+    min-height: 78px;
+    background: rgba(255, 255, 255, .82);
+    backdrop-filter: saturate(1.8) blur(20px);
+    -webkit-backdrop-filter: saturate(1.8) blur(20px);
+  }
+  .view header .head-av {
+    width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center;
+    font-weight: 600; color: #fff;
+    background: linear-gradient(165deg, #5ac8fa, #0071e3);
+  }
+  .view header h2 { font-size: 1.2rem; }
+  .view header .when { color: var(--text-3); font-size: .8rem; margin-top: 1px; }
+  .view header .spacer { flex: 1; }
+  #back { display: none; background: var(--fill-2); border: 0; border-radius: 999px; color: var(--text); padding: 8px 15px; font-weight: 500; font-size: .85rem; }
+  @media (max-width: 900px) { .shell.viewing #back { display: inline-flex; } }
+
+  #transcript { flex: 1; overflow-y: auto; padding: 34px max(22px, 3vw); display: flex; flex-direction: column; gap: 3px; max-width: 860px; width: 100%; margin: 0 auto; }
+  .turn { display: flex; flex-direction: column; max-width: 78%; margin-bottom: 12px; }
+  .turn .who { font-size: .68rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); margin: 0 14px 3px; display: flex; gap: 8px; align-items: baseline; }
+  .turn .who time { font-weight: 400; text-transform: none; letter-spacing: 0; }
+  .turn .bubble { padding: 10px 15px; border-radius: 19px; font-size: .95rem; line-height: 1.45; }
+  .turn.agent { align-self: flex-start; }
+  .turn.agent .bubble { background: #e9e9eb; color: var(--text); border-bottom-left-radius: 6px; }
+  .turn.candidate { align-self: flex-end; align-items: flex-end; }
+  .turn.candidate .bubble { background: var(--blue); color: #fff; border-bottom-right-radius: 6px; }
+  .turn .cut { font-size: .72rem; color: var(--orange-deep); margin: 3px 14px 0; }
+  .placeholder { margin: auto; color: var(--text-3); text-align: center; }
+  .placeholder svg { color: #d1d1d6; margin-bottom: 12px; }
+
+  .new-btn {
+    margin: 0 22px 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    background: var(--blue); color: #fff; font-weight: 600; font-size: .9rem;
+    border: 0; border-radius: 12px; padding: 11px 16px;
+    transition: background .2s var(--ease);
+  }
+  .new-btn:hover { background: var(--blue-hover); }
+
+  .modal-scrim {
+    position: fixed; inset: 0; background: rgba(0,0,0,.32);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    display: grid; place-items: center; z-index: 200; padding: 20px;
+  }
+  .modal-scrim[hidden] { display: none; }
+  .modal {
+    width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto;
+    background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-3);
+    padding: 30px;
+  }
+  .modal h3 { font-size: 1.3rem; margin-bottom: 6px; }
+  .modal .sub { color: var(--text-2); font-size: .88rem; margin-bottom: 22px; }
+  .modal form { display: flex; flex-direction: column; gap: 16px; }
+  .modal label.field { display: flex; flex-direction: column; gap: 6px; font-size: .84rem; font-weight: 600; color: var(--text); }
+  .modal .hint { font-weight: 400; color: var(--text-3); }
+  .modal input[type="text"], .modal input[type="number"], .modal textarea {
+    background: var(--fill); border: 1px solid transparent; border-radius: var(--radius-sm);
+    color: var(--text); padding: 11px 13px; min-height: 44px; font: inherit;
+    transition: background .2s var(--ease), border-color .2s var(--ease), box-shadow .2s var(--ease);
+  }
+  .modal textarea { resize: vertical; }
+  .modal input:focus, .modal textarea:focus { background: var(--surface); border-color: var(--blue); box-shadow: 0 0 0 4px rgba(0,113,227,.14); outline: none; }
+  .modal .row { display: grid; grid-template-columns: 1fr 120px; gap: 14px; }
+  .modal .dropzone {
+    display: flex; align-items: center; gap: 10px;
+    border-radius: var(--radius-sm); padding: 12px 14px; cursor: pointer;
+    color: var(--text-2); font-size: .86rem; background: var(--fill);
+    transition: background .2s var(--ease);
+  }
+  .modal .dropzone:hover { background: var(--blue-soft); }
+  .modal .dropzone svg { flex: none; color: var(--blue); }
+  .modal .dropzone input { display: none; }
+  .modal .actions { display: flex; gap: 10px; margin-top: 4px; }
+  .modal .actions button[type="button"] { background: var(--fill-2); color: var(--text); border: 0; border-radius: 980px; padding: 12px 18px; font-weight: 500; }
+  .modal .actions .btn-primary { flex: 1; }
+
+  .link-result { text-align: center; }
+  .link-result svg { color: var(--green); margin-bottom: 12px; }
+  .link-result h3 { margin-bottom: 4px; }
+  .link-result .sub { margin-bottom: 20px; }
+  .link-row {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--fill); border-radius: 10px; padding: 6px 6px 6px 14px; margin-bottom: 18px;
+  }
+  .link-row input { flex: 1; background: none; border: 0; color: var(--text); font-size: .86rem; }
+  .link-row input:focus { outline: none; }
+  .link-row button { background: var(--text); color: #fff; border: 0; border-radius: 8px; padding: 9px 14px; font-size: .82rem; font-weight: 600; white-space: nowrap; }
+  .link-row button.copied { background: var(--green-deep); }
+</style>
+</head>
+<body>
+  <header class="topnav">
+    <a class="brand" href="/">
+      <span class="mark">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+          <path d="M12 2a4 4 0 0 1 4 4v5a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/>
+        </svg>
+      </span>
+      IDC Interviewer
+    </a>
+    <nav aria-label="Primary">
+      <a href="/">Interview Room</a>
+      <a href="/ops" class="active" aria-current="page">Ops Dashboard</a>
+    </nav>
+    <div class="spacer"></div>
+  </header>
+
+  <div class="shell" id="shell">
+    <aside>
+      <div class="stats" id="stats">
+        <div class="stat"><b id="st-total">–</b><span>Total</span></div>
+        <div class="stat live-stat"><b id="st-live">–</b><span>Live</span></div>
+        <div class="stat done-stat"><b id="st-done">–</b><span>Done</span></div>
+      </div>
+
+      <button class="new-btn" id="new-btn" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        New interview
+      </button>
+
+      <div class="search">
+        <input id="filter" type="search" placeholder="Search roles" autocomplete="off">
+      </div>
+
+      <nav id="sessions" aria-label="Interview sessions"></nav>
+    </aside>
+
+    <section class="view">
+      <header>
+        <button id="back" aria-label="Back to session list">Back</button>
+        <div class="head-av" id="view-av" hidden></div>
+        <div>
+          <h2 id="view-title">Select an interview</h2>
+          <div class="when" id="view-meta"></div>
+        </div>
+        <div class="spacer"></div>
+        <span class="badge" id="view-status" hidden></span>
+      </header>
+      <div id="transcript">
+        <div class="placeholder">
+          <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <div>Pick a session on the left to read its transcript.<br>Live interviews update automatically.</div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-scrim" id="modal-scrim" hidden>
+    <div class="modal" id="modal-create">
+      <h3>New interview</h3>
+      <div class="sub">Set this up once — you'll get a link to send the candidate. It won't start until they join.</div>
+      <form id="new-form">
+        <div class="row">
+          <label class="field">Role title
+            <input type="text" name="role" placeholder="e.g. Backend Software Engineer" autocomplete="off">
+          </label>
+          <label class="field">Duration <span class="hint">min</span>
+            <input type="number" name="duration_min" value="20" min="5" max="60">
+          </label>
+        </div>
+        <label class="field">Job description
+          <textarea name="jd_text" rows="4" placeholder="Paste the JD here, or attach a file below"></textarea>
+        </label>
+        <label class="dropzone" id="jd-drop">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+          <span data-empty="Attach JD file — PDF, DOCX or TXT">Attach JD file — PDF, DOCX or TXT</span>
+          <input type="file" name="jd_file" accept=".pdf,.docx,.txt,.md">
+        </label>
+        <label class="dropzone" id="docs-drop">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/><path d="M8 13h8M8 17h5"/></svg>
+          <span data-empty="Supporting docs — resume, notes (optional)">Supporting docs — resume, notes (optional)</span>
+          <input type="file" name="docs" accept=".pdf,.docx,.txt,.md" multiple>
+        </label>
+        <div class="actions">
+          <button type="button" id="modal-cancel">Cancel</button>
+          <button type="submit" class="btn-primary" id="modal-submit">Create link</button>
+        </div>
+      </form>
+
+      <div class="link-result" id="link-result" hidden>
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>
+        <h3>Interview link ready</h3>
+        <div class="sub">Send this to the candidate. It's a one-time link scoped to this interview — nothing about the JD or ops dashboard is visible to them.</div>
+        <div class="link-row">
+          <input type="text" id="link-input" readonly>
+          <button type="button" id="copy-btn">Copy</button>
+        </div>
+        <button type="button" class="btn-primary" id="modal-done" style="width:100%;">Done</button>
+      </div>
+    </div>
+  </div>
+
+<script src="/static/ops.js?v=3"></script>
+</body>
+</html>

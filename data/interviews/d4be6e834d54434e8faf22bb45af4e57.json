@@ -1,0 +1,15 @@
+{
+ "id": "d4be6e834d54434e8faf22bb45af4e57",
+ "role": "Generative AI Engineer",
+ "duration_min": 20,
+ "jd_present": true,
+ "created_at": 1784009690.171514,
+ "status": "disconnected",
+ "messages": [
+  {
+   "speaker": "candidate",
+   "text": "(whirring sound)",
+   "ts": 1784009693.419102
+  }
+ ]
+}

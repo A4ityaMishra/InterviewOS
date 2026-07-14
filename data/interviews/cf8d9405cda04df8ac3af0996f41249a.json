@@ -1,0 +1,15 @@
+{
+ "id": "cf8d9405cda04df8ac3af0996f41249a",
+ "role": "Backend Engineer",
+ "duration_min": 20,
+ "jd_present": true,
+ "created_at": 1783941856.500959,
+ "status": "disconnected",
+ "messages": [
+  {
+   "speaker": "candidate",
+   "text": "Let's see what this one is.",
+   "ts": 1783941874.424726
+  }
+ ]
+}
