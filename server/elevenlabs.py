@@ -43,23 +43,32 @@ def _headers() -> dict:
 async def synthesize(text: str) -> bytes:
     """Synthesize speech; returns MP3 bytes (browser decodeAudioData handles
     them the same as WAV). Repeated phrases served from disk cache."""
+    if not config.ELEVENLABS_API_KEY:
+        raise ValueError("ELEVENLABS_API_KEY not set in environment")
     key = hashlib.sha256(
         f"11labs|{TTS_MODEL}|{config.ELEVENLABS_VOICE_ID}|{text}".encode()
     ).hexdigest()
     cached = TTS_CACHE_DIR / f"{key}.mp3"
     if cached.exists():
         return cached.read_bytes()
-    resp = await _client.post(
-        f"https://api.elevenlabs.io/v1/text-to-speech/{config.ELEVENLABS_VOICE_ID}"
-        "?output_format=mp3_22050_32",
-        headers=_headers(),
-        json={"text": text, "model_id": TTS_MODEL},
-    )
-    resp.raise_for_status()
-    audio = resp.content
-    if audio:
-        cached.write_bytes(audio)
-    return audio
+    try:
+        resp = await _client.post(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{config.ELEVENLABS_VOICE_ID}"
+            "?output_format=mp3_22050_32",
+            headers=_headers(),
+            json={"text": text, "model_id": TTS_MODEL},
+        )
+        resp.raise_for_status()
+        audio = resp.content
+        if not audio:
+            log.error("ElevenLabs TTS returned empty content for text: %s", text[:50])
+            raise ValueError("ElevenLabs TTS returned empty audio")
+        if audio:
+            cached.write_bytes(audio)
+        return audio
+    except Exception as e:
+        log.error("ElevenLabs TTS failed: %s", str(e))
+        raise
 
 
 def _pcm_to_wav(pcm: bytes) -> bytes:
@@ -74,14 +83,20 @@ def _pcm_to_wav(pcm: bytes) -> bytes:
 
 async def transcribe(pcm: bytes) -> str:
     """Batch STT fallback (Scribe v1)."""
-    resp = await _client.post(
-        STT_BATCH_URL,
-        headers=_headers(),
-        files={"file": ("audio.wav", _pcm_to_wav(pcm), "audio/wav")},
-        data={"model_id": "scribe_v1"},
-    )
-    resp.raise_for_status()
-    return (resp.json().get("text") or "").strip()
+    if not config.ELEVENLABS_API_KEY:
+        raise ValueError("ELEVENLABS_API_KEY not set in environment")
+    try:
+        resp = await _client.post(
+            STT_BATCH_URL,
+            headers=_headers(),
+            files={"file": ("audio.wav", _pcm_to_wav(pcm), "audio/wav")},
+            data={"model_id": "scribe_v1"},
+        )
+        resp.raise_for_status()
+        return (resp.json().get("text") or "").strip()
+    except Exception as e:
+        log.error("ElevenLabs batch STT failed: %s", str(e))
+        raise
 
 
 class StreamingSTT:
