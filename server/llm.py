@@ -1,6 +1,7 @@
 """Streaming LLM client. OpenAI by default; DeepSeek via its
 OpenAI-compatible endpoint (set LLM_PROVIDER=deepseek)."""
 
+import asyncio
 from typing import AsyncIterator
 
 from openai import AsyncOpenAI
@@ -32,15 +33,23 @@ def _get_client() -> AsyncOpenAI:
 
 
 async def stream_chat(messages: list[dict]) -> AsyncIterator[str]:
-    """Yields text deltas."""
-    stream = await _get_client().chat.completions.create(
-        model=_model,
-        messages=messages,
-        stream=True,
-        temperature=0.6,
-        max_tokens=300,
+    """Yields text deltas, timing out if the model stalls."""
+    stream = await asyncio.wait_for(
+        _get_client().chat.completions.create(
+            model=_model,
+            messages=messages,
+            stream=True,
+            temperature=0.6,
+            max_tokens=300,
+        ),
+        timeout=config.LLM_RESPONSE_TIMEOUT_S,
     )
-    async for chunk in stream:
+    iterator = aiter(stream)
+    while True:
+        try:
+            chunk = await asyncio.wait_for(anext(iterator), timeout=config.LLM_RESPONSE_TIMEOUT_S)
+        except StopAsyncIteration:
+            break
         delta = chunk.choices[0].delta.content if chunk.choices else None
         if delta:
             yield delta

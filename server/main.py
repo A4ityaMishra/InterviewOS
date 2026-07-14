@@ -139,13 +139,16 @@ class CallHandler:
         queue: asyncio.Queue = asyncio.Queue()
 
         async def produce():
-            # pipeline: kick off TTS for each sentence as the LLM emits it,
-            # so synthesis of sentence N overlaps generation of sentence N+1
-            async for sentence in self.session.respond(user_text):
-                queue.put_nowait(
-                    (sentence, asyncio.create_task(speech.synthesize(sentence)))
-                )
-            queue.put_nowait(None)
+            try:
+                # pipeline: kick off TTS for each sentence as the LLM emits it,
+                # so synthesis of sentence N overlaps generation of sentence N+1
+                async for sentence in self.session.respond(user_text):
+                    queue.put_nowait(
+                        ("sentence", sentence, asyncio.create_task(speech.synthesize(sentence)))
+                    )
+                queue.put_nowait(("done", None, None))
+            except Exception as exc:
+                queue.put_nowait(("error", exc, None))
 
         producer = asyncio.create_task(produce())
         try:
@@ -155,8 +158,21 @@ class CallHandler:
                 await asyncio.sleep(config.REPLY_DELAY_MS / 1000)
             first = True
             t0 = time.monotonic()
-            while (item := await queue.get()) is not None:
-                sentence, tts_task = item
+            while True:
+                try:
+                    item_type, payload, tts_task = await asyncio.wait_for(
+                        queue.get(), timeout=config.LLM_RESPONSE_TIMEOUT_S
+                    )
+                except asyncio.TimeoutError:
+                    log.warning("agent response timed out for session %s", self.session_id)
+                    raise RuntimeError("LLM response timed out")
+
+                if item_type == "error":
+                    raise payload
+                if item_type == "done":
+                    break
+
+                sentence = payload
                 wav = await tts_task
                 if first:
                     log.info("latency: to-first-audio %.2fs", time.monotonic() - t0)
@@ -198,8 +214,8 @@ class CallHandler:
             producer.cancel()
             while not queue.empty():
                 item = queue.get_nowait()
-                if item is not None:
-                    item[1].cancel()
+                if item[0] != "done" and len(item) > 2 and item[2] is not None:
+                    item[2].cancel()
 
     def _record_agent_turn(self, interrupted: bool = False):
         text = self.spoken_so_far.strip()

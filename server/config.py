@@ -42,3 +42,6 @@ REPLY_DELAY_MS = int(os.getenv("REPLY_DELAY_MS", "500"))
 # Hard stop: force-end the call if it runs this far past the planned duration,
 # regardless of what the LLM is doing (safety net under the prompt's own pacing).
 HARD_TIMEOUT_GRACE_MIN = int(os.getenv("HARD_TIMEOUT_GRACE_MIN", "10"))
+# How long to wait for the model to produce the next chunk before treating the
+# response as hung and falling back to an error state.
+LLM_RESPONSE_TIMEOUT_S = int(os.getenv("LLM_RESPONSE_TIMEOUT_S", "45"))
