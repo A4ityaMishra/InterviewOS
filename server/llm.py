@@ -15,12 +15,18 @@ def _get_client() -> AsyncOpenAI:
     global _client, _model
     if _client is None:
         if config.LLM_PROVIDER == "deepseek":
+            key = config.DEEPSEEK_API_KEY
+            if not key:
+                raise ValueError("DEEPSEEK_API_KEY not set in environment")
             _client = AsyncOpenAI(
-                api_key=config.DEEPSEEK_API_KEY, base_url="https://api.deepseek.com"
+                api_key=key, base_url="https://api.deepseek.com"
             )
             _model = config.DEEPSEEK_MODEL
         else:
-            _client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
+            key = config.OPENAI_API_KEY
+            if not key:
+                raise ValueError("OPENAI_API_KEY not set in environment")
+            _client = AsyncOpenAI(api_key=key)
             _model = config.OPENAI_MODEL
     return _client
 

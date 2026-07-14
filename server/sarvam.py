@@ -33,6 +33,8 @@ def _pcm_to_wav(pcm: bytes) -> bytes:
 
 async def transcribe(pcm: bytes) -> str:
     """Transcribe 16 kHz mono PCM. Returns the transcript ('' on silence)."""
+    if not config.SARVAM_API_KEY:
+        raise ValueError("SARVAM_API_KEY not set in environment")
     resp = await _client.post(
         STT_URL,
         headers={"api-subscription-key": config.SARVAM_API_KEY},
@@ -50,13 +52,20 @@ async def synthesize(text: str) -> bytes:
     cached = TTS_CACHE_DIR / f"{key}.wav"
     if cached.exists():
         return cached.read_bytes()
-    wav = await _synthesize(text)
-    if wav:
-        cached.write_bytes(wav)
-    return wav
+    try:
+        wav = await _synthesize(text)
+        if wav:
+            cached.write_bytes(wav)
+        return wav
+    except Exception as e:
+        import logging
+        logging.error("TTS synthesis failed for text='%s': %s", text[:50], str(e))
+        raise
 
 
 async def _synthesize(text: str) -> bytes:
+    if not config.SARVAM_API_KEY:
+        raise ValueError("SARVAM_API_KEY not set in environment")
     resp = await _client.post(
         TTS_URL,
         headers={
@@ -74,4 +83,8 @@ async def _synthesize(text: str) -> bytes:
     )
     resp.raise_for_status()
     audios = resp.json().get("audios", [])
+    if not audios:
+        import logging
+        logging.error("TTS API returned no audio for text: %s", text[:50])
+        raise ValueError("TTS API returned empty audio response")
     return base64.b64decode(audios[0]) if audios else b""

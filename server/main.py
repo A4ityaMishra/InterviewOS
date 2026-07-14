@@ -182,9 +182,18 @@ class CallHandler:
                 self.pending_text = ""
             self._record_agent_turn(interrupted=True)
             raise
-        except Exception:
-            log.exception("agent response failed")
-            await self.send(type="status", state="listening")
+        except Exception as e:
+            log.exception("agent response failed: %s", str(e))
+            await self.send(
+                type="status",
+                state="listening",
+                error=f"Agent failed: {type(e).__name__}: {str(e)}"
+            )
+            # Don't silently fail — let the candidate know something went wrong
+            await self.send(
+                type="agent_text",
+                text="I'm having trouble connecting. Can you hear me?"
+            )
         finally:
             producer.cancel()
             while not queue.empty():
