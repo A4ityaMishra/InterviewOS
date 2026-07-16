@@ -4,19 +4,59 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Interview</title>
-<link rel="stylesheet" href="/static/theme.css?v=3">
+<link rel="stylesheet" href="/static/theme.css?v=6">
 <link rel="stylesheet" href="/static/call.css?v=1">
 <style>
-  main { display: flex; flex-direction: column; align-items: center; padding: clamp(28px, 8vh, 88px) 20px 60px; }
+  main { display: flex; flex-direction: column; align-items: center; padding: clamp(28px, 8vh, 100px) 20px 60px; }
+
+  #wizard { max-width: 480px; margin: 0 auto; }
 
   .card { width: 100%; max-width: 480px; background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-2); padding: 40px; text-align: center; }
-  .card .role-pill { display: inline-block; background: var(--fill); color: var(--text-2); font-size: .8rem; font-weight: 600; padding: 6px 14px; border-radius: 999px; margin-bottom: 18px; }
+
+  .glyph {
+    width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 20px;
+    display: grid; place-items: center;
+    background: linear-gradient(165deg, #5ac8fa 0%, #0071e3 55%, #004fa3 100%);
+    box-shadow: 0 10px 30px rgba(0, 90, 180, .3);
+    color: #fff;
+  }
+  .glyph.neutral { background: var(--fill-2); color: var(--text-2); box-shadow: none; }
+  .glyph.good { background: linear-gradient(165deg, #6ee7a0, var(--green-deep)); box-shadow: 0 10px 30px rgba(36,138,61,.3); }
+
+  .role-pill { display: inline-block; background: var(--fill); color: var(--text-2); font-size: .8rem; font-weight: 600; padding: 6px 14px; border-radius: 999px; margin-bottom: 16px; }
   .card h1 { font-size: 1.55rem; margin-bottom: 10px; }
-  .card p { color: var(--text-2); margin-bottom: 28px; line-height: 1.5; }
+  .card p { color: var(--text-2); margin-bottom: 26px; line-height: 1.5; }
   .card .checks { text-align: left; display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
   .card .checks div { display: flex; align-items: center; gap: 10px; font-size: .88rem; color: var(--text-2); }
   .card .checks svg { flex: none; color: var(--green-deep); }
-  .err { color: var(--red-deep); font-size: .88rem; margin-top: 14px; }
+  .err { color: var(--red-deep); font-size: .86rem; margin-top: 14px; line-height: 1.4; }
+
+  /* ---------- mic check ---------- */
+  .mic-test {
+    display: flex; align-items: center; justify-content: center; gap: 3px;
+    height: 56px; margin-bottom: 18px;
+  }
+  .mic-test i {
+    width: 6px; border-radius: 3px; background: var(--fill-2);
+    height: 8px; transition: height .08s linear, background .2s var(--ease);
+  }
+  .mic-test.live i { background: var(--green); }
+  .mic-test-status {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-size: .88rem; color: var(--text-2); margin-bottom: 22px; min-height: 22px;
+  }
+  .mic-test-status .spin {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid var(--fill-2); border-top-color: var(--text-3);
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .device-select {
+    width: 100%; background: var(--fill); border: 1px solid transparent; border-radius: var(--radius-sm);
+    color: var(--text); padding: 11px 13px; font-size: .88rem; margin-bottom: 22px;
+    transition: background .2s var(--ease), border-color .2s var(--ease);
+  }
+  .device-select:focus { background: var(--surface); border-color: var(--blue); outline: none; }
 </style>
 </head>
 <body>
@@ -33,18 +73,61 @@
   </header>
 
   <main>
-    <section class="card" id="lobby">
-      <span class="role-pill" id="role-pill">Loading…</span>
-      <h1>You're about to start your interview</h1>
-      <p>This will be a short spoken conversation with an AI interviewer. Find a quiet spot and make sure your microphone is working.</p>
-      <div class="checks">
-        <div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg> No coding — this is a conversational interview</div>
-        <div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg> Takes about <span id="dur-text">20</span> minutes</div>
-        <div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg> You'll be asked to allow microphone access</div>
+    <div class="wizard" id="wizard">
+      <div class="step-dots" id="dots">
+        <span class="d" data-step="welcome"></span>
+        <span class="d" data-step="check"></span>
+        <span class="d" data-step="ready"></span>
       </div>
-      <button id="start" class="btn-primary" style="width:100%;">Join interview</button>
-      <div class="err" id="err" hidden></div>
-    </section>
+
+      <!-- Step 1: Welcome -->
+      <section class="card step-panel" id="step-welcome">
+        <div class="glyph">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 2a4 4 0 0 1 4 4v5a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/></svg>
+        </div>
+        <span class="role-pill" id="role-pill">Loading…</span>
+        <h1>Welcome</h1>
+        <p id="welcome-copy">You've been invited to a short spoken interview. It's a conversation, not a test of memorization — take your time and think out loud.</p>
+        <button class="btn-primary" id="to-check" style="width:100%;">Continue</button>
+        <div class="err" id="err-welcome" hidden></div>
+      </section>
+
+      <!-- Step 2: Device check -->
+      <section class="card step-panel" id="step-check" hidden>
+        <h1>Check your microphone</h1>
+        <p>Say a few words out loud — you should see the bars respond below.</p>
+        <div class="mic-test" id="mic-test">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <div class="mic-test-status" id="mic-status">
+          <span class="spin"></span> Requesting microphone access…
+        </div>
+        <select class="device-select" id="device-select" hidden></select>
+        <div class="wizard-actions">
+          <button class="btn-secondary" id="back-to-welcome">Back</button>
+          <button class="btn-primary" id="to-ready" disabled>Sounds good</button>
+        </div>
+        <div class="err" id="err-check" hidden></div>
+      </section>
+
+      <!-- Step 3: Ready -->
+      <section class="card step-panel" id="step-ready" hidden>
+        <div class="glyph good">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
+        </div>
+        <h1>You're all set</h1>
+        <p>When you're ready, start the call — your interviewer will greet you right away.</p>
+        <div class="checks">
+          <div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg> No coding — this is a conversational interview</div>
+          <div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg> Takes about <span id="dur-text">20</span> minutes</div>
+          <div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg> Microphone checked and ready</div>
+        </div>
+        <div class="wizard-actions">
+          <button class="btn-secondary" id="back-to-check">Back</button>
+          <button class="btn-primary" id="start">Join interview</button>
+        </div>
+      </section>
+    </div>
 
     <section id="call" hidden class="panel-open">
       <div class="callwrap">
@@ -106,15 +189,15 @@
     </section>
 
     <section class="card" id="done" hidden>
-      <svg width="54" height="54" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" style="margin-bottom: 14px;">
-        <circle cx="12" cy="12" r="10"/><path d="M8 12.5l2.5 2.5L16 9.5"/>
-      </svg>
+      <div class="glyph good">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
+      </div>
       <h1 id="done-title">Interview complete</h1>
       <p id="done-sub">Thanks for your time — the team will review the conversation and follow up by email.</p>
     </section>
   </main>
 
   <script src="/static/call.js?v=2"></script>
-  <script src="/static/join.js?v=1"></script>
+  <script src="/static/join.js?v=2"></script>
 </body>
 </html>

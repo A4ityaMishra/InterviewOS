@@ -15,7 +15,13 @@ def _path(interview_id: str) -> Path:
     return DATA_DIR / f"{interview_id}.json"
 
 
-def create(interview_id: str, role: str, duration_min: int, jd_present: bool):
+def create(
+    interview_id: str,
+    role: str,
+    duration_min: int,
+    jd_present: bool,
+    provider: str = "pipeline",
+):
     _write(
         interview_id,
         {
@@ -23,6 +29,7 @@ def create(interview_id: str, role: str, duration_min: int, jd_present: bool):
             "role": role,
             "duration_min": duration_min,
             "jd_present": jd_present,
+            "provider": provider,  # pipeline | realtime
             "created_at": time.time(),
             "status": "created",  # created | live | completed | disconnected
             "messages": [],
@@ -70,6 +77,7 @@ def list_all() -> list[dict]:
                 "created_at": d["created_at"],
                 "status": d["status"],
                 "duration_min": d["duration_min"],
+                "provider": d.get("provider", "pipeline"),
                 "message_count": len(d["messages"]),
                 "last_activity": d["messages"][-1]["ts"] if d["messages"] else d["created_at"],
             }

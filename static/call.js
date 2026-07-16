@@ -141,7 +141,7 @@ panelToggle.onclick = () => {
   panelToggle.setAttribute("aria-pressed", String(open));
 };
 
-function startCall(sessionId, { onEnd }) {
+function startCall(sessionId, { onEnd, existingStream }) {
   endBtn.onclick = () => {
     if (ws) ws.close();
     flushPlayback();
@@ -153,11 +153,13 @@ function startCall(sessionId, { onEnd }) {
     });
   };
 
-  return _run(sessionId, onEnd);
+  return _run(sessionId, onEnd, existingStream);
 }
 
-async function _run(sessionId, onEnd) {
-  micStream = await navigator.mediaDevices.getUserMedia({
+async function _run(sessionId, onEnd, existingStream) {
+  // reuse the stream from an earlier device-check step if one was passed in,
+  // so the candidate isn't asked for mic permission a second time
+  micStream = existingStream || await navigator.mediaDevices.getUserMedia({
     audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
   });
   const stream = micStream;

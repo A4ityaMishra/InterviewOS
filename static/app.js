@@ -48,6 +48,7 @@ async function createSession() {
   fd.append("role", setupForm.role.value);
   fd.append("jd_text", setupForm.jd_text.value);
   fd.append("duration_min", setupForm.duration_min.value || "20");
+  fd.append("provider", setupForm.provider.value || "pipeline");
   if (setupForm.jd_file.files[0]) fd.append("jd_file", setupForm.jd_file.files[0]);
   for (const f of setupForm.docs.files) fd.append("docs", f);
   const resp = await fetch("/api/session", { method: "POST", body: fd });

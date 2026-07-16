@@ -17,6 +17,15 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 
+# Smallest.ai Waves TTS (used when SPEECH_PROVIDER=smallest)
+SMALLEST_API_KEY = os.getenv("SMALLEST_API_KEY", "")
+SMALLEST_VOICE_ID = os.getenv("SMALLEST_VOICE_ID", "jessica")
+SMALLEST_SAMPLE_RATE = int(os.getenv("SMALLEST_SAMPLE_RATE", "24000"))
+
+# OpenAI Realtime (used when LLM_PROVIDER=realtime)
+OPENAI_REALTIME_MODEL = os.getenv("OPENAI_REALTIME_MODEL", "gpt-4o-mini-realtime-preview")
+REALTIME_VOICE = os.getenv("REALTIME_VOICE", "alloy")
+
 AGENT_NAME = os.getenv("AGENT_NAME", "Sarah")
 
 INTERVIEW_ROLE = os.getenv("INTERVIEW_ROLE", "Backend Software Engineer")

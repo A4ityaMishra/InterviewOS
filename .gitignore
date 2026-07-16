@@ -1,1 +1,6 @@
 .env
+__pycache__/
+*.pyc
+data/interviews/
+data/tts_cache/
+data/doc_cache/

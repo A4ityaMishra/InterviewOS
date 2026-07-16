@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>IDC Interviewer — Ops Dashboard</title>
-<link rel="stylesheet" href="/static/theme.css?v=3">
+<link rel="stylesheet" href="/static/theme.css?v=6">
 <style>
   body { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
   .shell { display: grid; grid-template-columns: 392px 1fr; flex: 1; min-height: 0; }
@@ -56,6 +56,7 @@
   .item .info { min-width: 0; flex: 1; }
   .item .role { font-weight: 600; font-size: .9rem; letter-spacing: -.012em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .item .meta { font-size: .76rem; color: var(--text-3); display: flex; gap: 7px; font-variant-numeric: tabular-nums; margin-top: 1px; }
+  .engine-tag { color: var(--blue); font-weight: 600; }
   .item .badge { flex: none; }
   .badge.live::before { animation: pulse-dot 1.2s infinite alternate; }
   @keyframes pulse-dot { to { opacity: .35; } }
@@ -115,8 +116,8 @@
   }
   .modal h3 { font-size: 1.3rem; margin-bottom: 6px; }
   .modal .sub { color: var(--text-2); font-size: .88rem; margin-bottom: 22px; }
-  .modal form { display: flex; flex-direction: column; gap: 16px; }
-  .modal label.field { display: flex; flex-direction: column; gap: 6px; font-size: .84rem; font-weight: 600; color: var(--text); }
+  .modal-step { display: flex; flex-direction: column; gap: 16px; }
+  .modal .field { display: flex; flex-direction: column; gap: 6px; font-size: .84rem; font-weight: 600; color: var(--text); }
   .modal .hint { font-weight: 400; color: var(--text-3); }
   .modal input[type="text"], .modal input[type="number"], .modal textarea {
     background: var(--fill); border: 1px solid transparent; border-radius: var(--radius-sm);
@@ -126,6 +127,14 @@
   .modal textarea { resize: vertical; }
   .modal input:focus, .modal textarea:focus { background: var(--surface); border-color: var(--blue); box-shadow: 0 0 0 4px rgba(0,113,227,.14); outline: none; }
   .modal .row { display: grid; grid-template-columns: 1fr 120px; gap: 14px; }
+  /* unit suffix lives inside the input, not the label, so label rows in a
+     .row grid always stay single-line and align across columns */
+  .modal .input-suffix { position: relative; }
+  .modal .input-suffix input { width: 100%; padding-right: 40px; }
+  .modal .input-suffix span {
+    position: absolute; right: 13px; top: 50%; transform: translateY(-50%);
+    color: var(--text-3); font-size: .82rem; pointer-events: none;
+  }
   .modal .dropzone {
     display: flex; align-items: center; gap: 10px;
     border-radius: var(--radius-sm); padding: 12px 14px; cursor: pointer;
@@ -136,8 +145,19 @@
   .modal .dropzone svg { flex: none; color: var(--blue); }
   .modal .dropzone input { display: none; }
   .modal .actions { display: flex; gap: 10px; margin-top: 4px; }
-  .modal .actions button[type="button"] { background: var(--fill-2); color: var(--text); border: 0; border-radius: 980px; padding: 12px 18px; font-weight: 500; }
+  .modal .actions .btn-secondary { flex: none; }
   .modal .actions .btn-primary { flex: 1; }
+  .modal .skip-link {
+    align-self: center; background: none; border: 0; color: var(--text-3);
+    font-size: .84rem; font-weight: 500; padding: 4px;
+  }
+  .modal .skip-link:hover { color: var(--text-2); }
+
+  .review-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 22px; }
+  .review-row { display: flex; justify-content: space-between; gap: 16px; padding: 12px 14px; background: var(--fill); border-radius: var(--radius-sm); }
+  .review-row .k { font-size: .8rem; color: var(--text-3); font-weight: 600; }
+  .review-row .v { font-size: .88rem; font-weight: 500; text-align: right; max-width: 62%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .review-row .v.muted { color: var(--text-3); font-weight: 400; }
 
   .link-result { text-align: center; }
   .link-result svg { color: var(--green); margin-bottom: 12px; }
@@ -212,33 +232,93 @@
 
   <div class="modal-scrim" id="modal-scrim" hidden>
     <div class="modal" id="modal-create">
-      <h3>New interview</h3>
-      <div class="sub">Set this up once — you'll get a link to send the candidate. It won't start until they join.</div>
+      <div class="step-dots" id="modal-dots">
+        <span class="d" data-step="0"></span>
+        <span class="d" data-step="1"></span>
+        <span class="d" data-step="2"></span>
+        <span class="d" data-step="3"></span>
+      </div>
+
       <form id="new-form">
-        <div class="row">
-          <label class="field">Role title
-            <input type="text" name="role" placeholder="e.g. Backend Software Engineer" autocomplete="off">
-          </label>
-          <label class="field">Duration <span class="hint">min</span>
-            <input type="number" name="duration_min" value="20" min="5" max="60">
-          </label>
+        <!-- Step 0: role & duration -->
+        <div class="modal-step step-panel" id="mstep-0">
+          <h3>New interview</h3>
+          <div class="sub">Set this up once — you'll get a link to send the candidate. It won't start until they join.</div>
+          <div class="row">
+            <label class="field">Role title
+              <input type="text" name="role" placeholder="e.g. Backend Software Engineer" autocomplete="off">
+            </label>
+            <label class="field">Duration
+              <div class="input-suffix">
+                <input type="number" name="duration_min" value="20" min="5" max="60">
+                <span>min</span>
+              </div>
+            </label>
+          </div>
+          <div class="field">
+            <span>Response engine</span>
+            <div class="segmented" role="radiogroup" aria-label="Response engine">
+              <input type="radio" name="provider" value="pipeline" id="m-eng-pipeline" checked>
+              <label for="m-eng-pipeline"><b>Our pipeline</b><small>STT → LLM → TTS, tunable</small></label>
+              <input type="radio" name="provider" value="realtime" id="m-eng-realtime">
+              <label for="m-eng-realtime"><b>Realtime mini</b><small>Single voice model, lower latency</small></label>
+            </div>
+          </div>
+          <div class="actions">
+            <button type="button" id="modal-cancel">Cancel</button>
+            <button type="button" class="btn-primary" id="m-to-1">Continue</button>
+          </div>
         </div>
-        <label class="field">Job description
-          <textarea name="jd_text" rows="4" placeholder="Paste the JD here, or attach a file below"></textarea>
-        </label>
-        <label class="dropzone" id="jd-drop">
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
-          <span data-empty="Attach JD file — PDF, DOCX or TXT">Attach JD file — PDF, DOCX or TXT</span>
-          <input type="file" name="jd_file" accept=".pdf,.docx,.txt,.md">
-        </label>
-        <label class="dropzone" id="docs-drop">
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/><path d="M8 13h8M8 17h5"/></svg>
-          <span data-empty="Supporting docs — resume, notes (optional)">Supporting docs — resume, notes (optional)</span>
-          <input type="file" name="docs" accept=".pdf,.docx,.txt,.md" multiple>
-        </label>
-        <div class="actions">
-          <button type="button" id="modal-cancel">Cancel</button>
-          <button type="submit" class="btn-primary" id="modal-submit">Create link</button>
+
+        <!-- Step 1: job description -->
+        <div class="modal-step step-panel" id="mstep-1" hidden>
+          <h3>Job description</h3>
+          <div class="sub">The interviewer builds its questions from this — paste the text or attach a file.</div>
+          <label class="field">Job description
+            <textarea name="jd_text" rows="6" placeholder="Paste the JD here, or attach a file below"></textarea>
+          </label>
+          <label class="dropzone" id="jd-drop">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            <span data-empty="Attach JD file — PDF, DOCX or TXT">Attach JD file — PDF, DOCX or TXT</span>
+            <input type="file" name="jd_file" accept=".pdf,.docx,.txt,.md">
+          </label>
+          <div class="actions">
+            <button type="button" class="btn-secondary" id="m-back-0">Back</button>
+            <button type="button" class="btn-primary" id="m-to-2">Continue</button>
+          </div>
+        </div>
+
+        <!-- Step 2: supporting docs (optional) -->
+        <div class="modal-step step-panel" id="mstep-2" hidden>
+          <h3>Supporting documents</h3>
+          <div class="sub">Optional — a resume or team notes let the interviewer personalize its questions.</div>
+          <label class="dropzone" id="docs-drop">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/><path d="M8 13h8M8 17h5"/></svg>
+            <span data-empty="Supporting docs — resume, notes (optional)">Supporting docs — resume, notes (optional)</span>
+            <input type="file" name="docs" accept=".pdf,.docx,.txt,.md" multiple>
+          </label>
+          <button type="button" class="skip-link" id="m-skip-2">Skip this step</button>
+          <div class="actions">
+            <button type="button" class="btn-secondary" id="m-back-1">Back</button>
+            <button type="button" class="btn-primary" id="m-to-3">Continue</button>
+          </div>
+        </div>
+
+        <!-- Step 3: review -->
+        <div class="modal-step step-panel" id="mstep-3" hidden>
+          <h3>Review</h3>
+          <div class="sub">Check the details, then generate the candidate's link.</div>
+          <div class="review-list">
+            <div class="review-row"><span class="k">Role</span><span class="v" id="rv-role">—</span></div>
+            <div class="review-row"><span class="k">Duration</span><span class="v" id="rv-duration">—</span></div>
+            <div class="review-row"><span class="k">Response engine</span><span class="v" id="rv-engine">—</span></div>
+            <div class="review-row"><span class="k">Job description</span><span class="v" id="rv-jd">—</span></div>
+            <div class="review-row"><span class="k">Supporting docs</span><span class="v" id="rv-docs">—</span></div>
+          </div>
+          <div class="actions">
+            <button type="button" class="btn-secondary" id="m-back-2">Back</button>
+            <button type="submit" class="btn-primary" id="modal-submit">Create link</button>
+          </div>
         </div>
       </form>
 
@@ -255,6 +335,6 @@
     </div>
   </div>
 
-<script src="/static/ops.js?v=3"></script>
+<script src="/static/ops.js?v=5"></script>
 </body>
 </html>

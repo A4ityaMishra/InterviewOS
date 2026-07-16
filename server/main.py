@@ -77,6 +77,7 @@ async def create_session(
     role: str = Form(""),
     duration_min: int = Form(0),
     jd_text: str = Form(""),
+    provider: str = Form("pipeline"),
     jd_file: UploadFile | None = None,
     docs: list[UploadFile] = [],
 ):
@@ -90,6 +91,7 @@ async def create_session(
 
     duration = duration_min or config.INTERVIEW_DURATION_MIN
     resolved_role = role or config.INTERVIEW_ROLE
+    resolved_provider = provider if provider in ("pipeline", "realtime") else "pipeline"
     prompt = build_system_prompt(
         role=resolved_role,
         duration_min=duration,
@@ -102,12 +104,14 @@ async def create_session(
         "prompt": prompt,
         "duration_min": duration,
         "topics": config.INTERVIEW_TOPICS,
+        "provider": resolved_provider,
     }
     store.create(
         session_id,
         role=resolved_role,
         duration_min=duration,
         jd_present=bool(jd_text.strip()),
+        provider=resolved_provider,
     )
     return {"session_id": session_id}
 
@@ -329,9 +333,28 @@ class CallHandler:
 async def ws_endpoint(ws: WebSocket, session: str = ""):
     if session not in _sessions:
         session = uuid.uuid4().hex
-        _sessions[session] = {}
+        default_provider = "realtime" if config.LLM_PROVIDER == "realtime" else "pipeline"
+        _sessions[session] = {"provider": default_provider}
         store.create(session, role=config.INTERVIEW_ROLE,
-                     duration_min=config.INTERVIEW_DURATION_MIN, jd_present=False)
+                     duration_min=config.INTERVIEW_DURATION_MIN, jd_present=False,
+                     provider=default_provider)
+
+    setup = _sessions.get(session) or {}
+    # per-session choice made at creation time wins; falls back to the global
+    # env default for sessions started before this field existed
+    provider = setup.get("provider") or ("realtime" if config.LLM_PROVIDER == "realtime" else "pipeline")
+
+    if provider == "realtime":
+        from .realtime_handler import RealtimeCallHandler
+        handler = RealtimeCallHandler(ws, session, setup)
+        try:
+            await handler.run()
+        except WebSocketDisconnect:
+            pass
+        finally:
+            store.set_status(session, "disconnected")
+        return
+
     handler = CallHandler(ws, session, _sessions.get(session))
     try:
         await handler.run()

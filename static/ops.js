@@ -66,6 +66,7 @@ function renderSessions() {
           <span>${fmtTime(s.created_at)}</span>
           <span>·</span>
           <span>${s.message_count} turns</span>
+          ${s.provider === "realtime" ? '<span>·</span><span class="engine-tag">realtime</span>' : ""}
         </div>
       </div>
       <span class="badge ${s.status}">${s.status}</span>`;
@@ -90,7 +91,8 @@ async function loadTranscript() {
   if (d.error) return;
 
   titleEl.textContent = d.role;
-  metaEl.textContent = `${fmtTime(d.created_at)} · planned ${d.duration_min} min · ${d.messages.length} turns`;
+  const engineNote = d.provider === "realtime" ? " · realtime mini" : "";
+  metaEl.textContent = `${fmtTime(d.created_at)} · planned ${d.duration_min} min · ${d.messages.length} turns${engineNote}`;
   viewAv.hidden = false;
   viewAv.style = avStyle(d.role);
   viewAv.textContent = initials(d.role);
@@ -161,12 +163,66 @@ for (const zoneId of ["jd-drop", "docs-drop"]) {
   });
 }
 
+// ---------- modal step wizard: role/duration -> JD -> docs -> review ----------
+const modalSteps = [0, 1, 2, 3].map(i => document.getElementById(`mstep-${i}`));
+const modalDots = [...document.querySelectorAll("#modal-dots .d")];
+let modalStep = 0;
+
+function goToModalStep(i, direction = "forward") {
+  modalStep = i;
+  modalSteps.forEach((el, idx) => { el.hidden = idx !== i; });
+  const el = modalSteps[i];
+  el.classList.toggle("back", direction === "back");
+  void el.offsetWidth;
+  el.style.animation = "none";
+  void el.offsetWidth;
+  el.style.animation = "";
+  modalDots.forEach((d, idx) => {
+    d.classList.toggle("active", idx === i);
+    d.classList.toggle("done", idx < i);
+  });
+  if (i === 3) fillReview();
+}
+
+function fillReview() {
+  const fd = new FormData(newForm);
+  const role = (fd.get("role") || "").trim() || "Untitled role";
+  const duration = fd.get("duration_min") || "20";
+  const jdText = (fd.get("jd_text") || "").trim();
+  const jdFile = newForm.jd_file.files[0];
+  const docs = newForm.docs.files;
+
+  const engine = fd.get("provider") === "realtime" ? "Realtime mini" : "Our pipeline";
+
+  document.getElementById("rv-role").textContent = role;
+  document.getElementById("rv-duration").textContent = `${duration} min`;
+  document.getElementById("rv-engine").textContent = engine;
+
+  const jdEl = document.getElementById("rv-jd");
+  if (jdFile) { jdEl.textContent = jdFile.name; jdEl.classList.remove("muted"); }
+  else if (jdText) { jdEl.textContent = jdText.slice(0, 40) + (jdText.length > 40 ? "…" : ""); jdEl.classList.remove("muted"); }
+  else { jdEl.textContent = "None provided"; jdEl.classList.add("muted"); }
+
+  const docsEl = document.getElementById("rv-docs");
+  if (docs.length) { docsEl.textContent = `${docs.length} file${docs.length > 1 ? "s" : ""}`; docsEl.classList.remove("muted"); }
+  else { docsEl.textContent = "None"; docsEl.classList.add("muted"); }
+}
+
+document.getElementById("m-to-1").onclick = () => goToModalStep(1);
+document.getElementById("m-back-0").onclick = () => goToModalStep(0, "back");
+document.getElementById("m-to-2").onclick = () => goToModalStep(2);
+document.getElementById("m-back-1").onclick = () => goToModalStep(1, "back");
+document.getElementById("m-to-3").onclick = () => goToModalStep(3);
+document.getElementById("m-skip-2").onclick = () => goToModalStep(3);
+document.getElementById("m-back-2").onclick = () => goToModalStep(2, "back");
+
 function openModal() {
   scrim.hidden = false;
   newForm.hidden = false;
   linkResult.hidden = true;
   newForm.reset();
   document.querySelectorAll("#modal-create .dropzone span").forEach(s => s.textContent = s.dataset.empty);
+  goToModalStep(0);
 }
 function closeModal() { scrim.hidden = true; }
 

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>IDC Interviewer — Interview Room</title>
-<link rel="stylesheet" href="/static/theme.css?v=3">
+<link rel="stylesheet" href="/static/theme.css?v=6">
 <link rel="stylesheet" href="/static/call.css?v=1">
 <style>
   main { display: flex; flex-direction: column; align-items: center; padding: clamp(28px, 6vh, 64px) 20px 80px; }
@@ -22,7 +22,7 @@
     padding: 34px;
   }
   form { display: flex; flex-direction: column; gap: 18px; }
-  label.field { display: flex; flex-direction: column; gap: 7px; font-size: .84rem; font-weight: 600; color: var(--text); }
+  .field { display: flex; flex-direction: column; gap: 7px; font-size: .84rem; font-weight: 600; color: var(--text); }
   .field .hint { font-weight: 400; color: var(--text-3); }
   .field input[type="text"], .field input[type="number"], .field textarea {
     background: var(--fill); border: 1px solid transparent; border-radius: var(--radius-sm);
@@ -49,6 +49,15 @@
   .row { display: grid; grid-template-columns: 1fr 130px; gap: 18px; }
   @media (max-width: 480px) { .row { grid-template-columns: 1fr; } }
   #start { margin-top: 6px; }
+
+  /* unit suffix lives inside the input, not the label, so label rows in a
+     .row grid always stay single-line and align across columns */
+  .input-suffix { position: relative; }
+  .input-suffix input { width: 100%; padding-right: 42px; }
+  .input-suffix span {
+    position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+    color: var(--text-3); font-size: .84rem; pointer-events: none;
+  }
 </style>
 </head>
 <body>
@@ -80,9 +89,21 @@
           <label class="field">Role title
             <input type="text" name="role" placeholder="e.g. Backend Software Engineer" autocomplete="off">
           </label>
-          <label class="field">Duration <span class="hint">min</span>
-            <input type="number" name="duration_min" value="20" min="5" max="60">
+          <label class="field">Duration
+            <div class="input-suffix">
+              <input type="number" name="duration_min" value="20" min="5" max="60">
+              <span>min</span>
+            </div>
           </label>
+        </div>
+        <div class="field">
+          <span>Response engine</span>
+          <div class="segmented" role="radiogroup" aria-label="Response engine">
+            <input type="radio" name="provider" value="pipeline" id="eng-pipeline" checked>
+            <label for="eng-pipeline"><b>Our pipeline</b><small>STT → LLM → TTS, tunable</small></label>
+            <input type="radio" name="provider" value="realtime" id="eng-realtime">
+            <label for="eng-realtime"><b>Realtime mini</b><small>Single voice model, lower latency</small></label>
+          </div>
         </div>
         <label class="field">Job description
           <textarea name="jd_text" rows="5" placeholder="Paste the JD here, or attach a file below"></textarea>
@@ -171,6 +192,6 @@
   </main>
 
   <script src="/static/call.js?v=2"></script>
-  <script src="/static/app.js?v=4"></script>
+  <script src="/static/app.js?v=5"></script>
 </body>
 </html>
