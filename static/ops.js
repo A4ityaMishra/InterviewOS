@@ -14,6 +14,31 @@ const stDone = document.getElementById("st-done");
 let selectedId = null;
 let allSessions = [];
 
+const toastStack = document.getElementById("toast-stack");
+function showToast(message, type = "error") {
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  toastStack.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add("leaving");
+    toast.addEventListener("animationend", () => toast.remove(), { once: true });
+  }, 4000);
+}
+
+function animateCount(el, to, duration = 600) {
+  const from = Number(el.textContent) || 0;
+  if (from === to) { el.textContent = to; return; }
+  const start = performance.now();
+  function tick(now) {
+    const p = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(from + (to - from) * eased);
+    if (p < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
 const fmtTime = ts => new Date(ts * 1000).toLocaleString([], {
   month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
 });
@@ -38,10 +63,11 @@ function avStyle(role) {
 
 async function loadSessions() {
   const resp = await fetch("/api/ops/sessions");
+  if (resp.status === 401) { window.location.href = "/login"; return; }
   allSessions = await resp.json();
-  stTotal.textContent = allSessions.length;
-  stLive.textContent = allSessions.filter(s => s.status === "live").length;
-  stDone.textContent = allSessions.filter(s => s.status === "completed").length;
+  animateCount(stTotal, allSessions.length);
+  animateCount(stLive, allSessions.filter(s => s.status === "live").length);
+  animateCount(stDone, allSessions.filter(s => s.status === "completed").length);
   renderSessions();
 }
 
@@ -87,6 +113,7 @@ async function select(id) {
 async function loadTranscript() {
   if (!selectedId) return;
   const resp = await fetch(`/api/ops/sessions/${selectedId}`);
+  if (resp.status === 401) { window.location.href = "/login"; return; }
   const d = await resp.json();
   if (d.error) return;
 
@@ -238,6 +265,7 @@ newForm.onsubmit = async (e) => {
   try {
     const fd = new FormData(newForm);
     const resp = await fetch("/api/session", { method: "POST", body: fd });
+    if (resp.status === 401) { window.location.href = "/login"; return; }
     if (!resp.ok) throw new Error(`request failed (${resp.status})`);
     const { session_id } = await resp.json();
     const link = `${location.origin}/interview/${session_id}`;
@@ -247,7 +275,7 @@ newForm.onsubmit = async (e) => {
     copyBtn.textContent = "Copy";
     copyBtn.classList.remove("copied");
   } catch (err) {
-    alert(`Could not create interview: ${err.message}`);
+    showToast(`Could not create interview: ${err.message}`);
   } finally {
     modalSubmit.disabled = false;
     modalSubmit.textContent = "Create link";
@@ -265,5 +293,23 @@ copyBtn.onclick = async () => {
   copyBtn.classList.add("copied");
 };
 
+// ---------- user chip (topnav) ----------
+async function loadMe() {
+  const resp = await fetch("/api/auth/me");
+  if (resp.status === 401) { window.location.href = "/login"; return; }
+  const user = await resp.json();
+  document.getElementById("chip-name").textContent = user.name;
+  const av = document.getElementById("chip-av");
+  av.textContent = initials(user.name);
+  av.style = avStyle(user.name);
+  document.getElementById("user-chip").hidden = false;
+  if (user.is_admin) document.getElementById("nav-team").hidden = false;
+}
+document.getElementById("logout-btn").addEventListener("click", async () => {
+  await fetch("/api/auth/logout", { method: "POST" });
+  window.location.href = "/login";
+});
+
+loadMe();
 loadSessions();
 setInterval(() => { loadSessions(); loadTranscript(); }, 4000);

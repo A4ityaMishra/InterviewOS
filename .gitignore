@@ -4,3 +4,4 @@ __pycache__/
 data/interviews/
 data/tts_cache/
 data/doc_cache/
+data/accounts.json

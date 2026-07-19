@@ -52,9 +52,40 @@ async function createSession() {
   if (setupForm.jd_file.files[0]) fd.append("jd_file", setupForm.jd_file.files[0]);
   for (const f of setupForm.docs.files) fd.append("docs", f);
   const resp = await fetch("/api/session", { method: "POST", body: fd });
+  if (resp.status === 401) { window.location.href = "/login"; throw new Error("not authenticated"); }
   if (!resp.ok) throw new Error(`setup failed: ${resp.status}`);
   return (await resp.json()).session_id;
 }
+
+// ---------- user chip (topnav) ----------
+const AV_GRADIENTS = [
+  ["#6366f1", "#4338ca"], ["#10b981", "#047857"], ["#f97316", "#c2410c"],
+  ["#8b5cf6", "#6d28d9"], ["#ec4899", "#be185d"], ["#0ea5e9", "#0369a1"],
+];
+function avStyle(str) {
+  let h = 0;
+  for (const ch of str) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const [a, b] = AV_GRADIENTS[h % AV_GRADIENTS.length];
+  return `background: linear-gradient(135deg, ${a}, ${b})`;
+}
+function initials(name) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join("") || "?";
+}
+(async function loadMe() {
+  const resp = await fetch("/api/auth/me");
+  if (resp.status === 401) { window.location.href = "/login"; return; }
+  const user = await resp.json();
+  document.getElementById("chip-name").textContent = user.name;
+  const av = document.getElementById("chip-av");
+  av.textContent = initials(user.name);
+  av.style = avStyle(user.name);
+  document.getElementById("user-chip").hidden = false;
+  if (user.is_admin) document.getElementById("nav-team").hidden = false;
+})();
+document.getElementById("logout-btn").addEventListener("click", async () => {
+  await fetch("/api/auth/logout", { method: "POST" });
+  window.location.href = "/login";
+});
 
 function showDone({ title, sub }) {
   if (typeof micStream !== "undefined" && micStream) micStream.getTracks().forEach(t => t.stop());

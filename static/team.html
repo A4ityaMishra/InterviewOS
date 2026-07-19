@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<title>InterviewOS — Manage Team</title>
+<link rel="stylesheet" href="/static/theme.css?v=9">
+<style>
+  main { display: flex; flex-direction: column; align-items: center; padding: clamp(28px, 6vh, 64px) 20px 80px; }
+  .wrap { width: 100%; max-width: 720px; }
+  .wrap-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
+  .wrap-header h1 { font-size: 1.7rem; }
+  .wrap-header p { color: var(--text-2); font-size: .94rem; margin-top: 4px; }
+
+  #accounts { display: flex; flex-direction: column; gap: 3px; }
+  .row {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--surface); border-radius: var(--radius-sm); padding: 12px 14px;
+    box-shadow: var(--shadow-1);
+    transition: transform .18s var(--ease), box-shadow .18s var(--ease);
+    animation: step-in .35s var(--ease) both;
+  }
+  .row:hover { transform: translateY(-1px); box-shadow: var(--shadow-2); }
+  .row .av {
+    flex: none; width: 40px; height: 40px; border-radius: 50%;
+    display: grid; place-items: center; font-weight: 600; font-size: .88rem; color: #fff;
+  }
+  .row .info { min-width: 0; flex: 1; }
+  .row .name { font-weight: 600; font-size: .92rem; display: flex; align-items: center; gap: 8px; }
+  .row .meta { font-size: .8rem; color: var(--text-3); margin-top: 1px; }
+  .row .tag {
+    display: inline-flex; align-items: center; font-size: .68rem; font-weight: 700;
+    letter-spacing: .03em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px;
+  }
+  .row .tag.admin { color: var(--blue); background: var(--blue-soft); }
+  .row .tag.you { color: var(--text-2); background: var(--fill-2); }
+  .row .actions-row { display: flex; gap: 6px; flex: none; }
+  .row .icon-btn {
+    width: 34px; height: 34px; border-radius: 999px; border: 0; background: var(--fill-2);
+    color: var(--text-2); display: grid; place-items: center;
+    transition: background .2s var(--ease), color .2s var(--ease);
+  }
+  .row .icon-btn:hover { background: #dedee3; color: var(--text); }
+  .row .icon-btn.danger:hover { background: rgba(255, 59, 48, .14); color: var(--red-deep); }
+  .row .icon-btn:disabled { opacity: .35; cursor: default; }
+
+  .empty { color: var(--text-3); text-align: center; padding: 40px 24px; font-size: .9rem; }
+
+  #reset-result, #create-result { text-align: center; }
+</style>
+</head>
+<body>
+  <header class="topnav">
+    <a class="brand" href="/welcome">
+      <span class="mark">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+          <path d="M6 10v4"/><path d="M12 5v14"/><path d="M18 8v8"/>
+        </svg>
+      </span>
+      InterviewOS
+    </a>
+    <nav aria-label="Primary">
+      <a href="/welcome">Home</a>
+      <a href="/test-room">Interview Room</a>
+      <a href="/ops">Ops Dashboard</a>
+      <a href="/team" class="active" aria-current="page">Manage Team</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="user-chip" id="user-chip" hidden>
+      <span class="av" id="chip-av"></span>
+      <span class="name" id="chip-name"></span>
+      <button class="logout" id="logout-btn" type="button">Log out</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="wrap">
+      <div class="wrap-header">
+        <div>
+          <h1>Team members</h1>
+          <p>Everyone here can sign in to the ops dashboard and test room.</p>
+        </div>
+        <button class="new-btn" id="new-btn" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Add teammate
+        </button>
+      </div>
+
+      <div id="accounts"></div>
+    </div>
+  </main>
+
+  <div class="modal-scrim" id="modal-scrim" hidden>
+    <div class="modal" id="modal-create">
+      <form id="new-form">
+        <h3>Add a teammate</h3>
+        <div class="sub">They'll get a one-time password to sign in with — share it with them directly.</div>
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <label class="field">Full name
+            <input type="text" name="name" placeholder="Jane Doe" autocomplete="off" required>
+          </label>
+          <label class="field">Username
+            <input type="text" name="username" placeholder="jane" autocomplete="off" required>
+          </label>
+          <label class="field">Team
+            <select name="team">
+              <option value="technical">Technical</option>
+              <option value="sales">Sales</option>
+            </select>
+          </label>
+          <label class="field" style="flex-direction:row; align-items:center; gap:8px;">
+            <input type="checkbox" name="is_admin" style="min-height:auto; width:auto;">
+            <span style="font-weight:500;">Grant admin access (can manage the team)</span>
+          </label>
+        </div>
+        <div class="err" id="create-err" role="alert" hidden style="color:var(--red-deep); font-size:.86rem; margin-top:14px;"></div>
+        <div class="actions">
+          <button type="button" class="btn-secondary" id="modal-cancel">Cancel</button>
+          <button type="submit" class="btn-primary" id="modal-submit">Create account</button>
+        </div>
+      </form>
+
+      <div class="link-result" id="create-result" hidden>
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>
+        <h3>Account created</h3>
+        <div class="sub">Send these credentials to <span id="cr-name"></span> — the password is shown once and can't be recovered later.</div>
+        <div class="link-row">
+          <input type="text" id="cr-username" readonly>
+        </div>
+        <div class="link-row">
+          <input type="text" id="cr-password" readonly>
+          <button type="button" id="cr-copy">Copy</button>
+        </div>
+        <button type="button" class="btn-primary" id="create-done" style="width:100%;">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-scrim" id="reset-scrim" hidden>
+    <div class="modal">
+      <div class="link-result" id="reset-result">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>
+        <h3>Password reset</h3>
+        <div class="sub">Send this new password to <span id="rs-name"></span> — it's shown once and can't be recovered later.</div>
+        <div class="link-row">
+          <input type="text" id="rs-password" readonly>
+          <button type="button" id="rs-copy">Copy</button>
+        </div>
+        <button type="button" class="btn-primary" id="reset-done" style="width:100%;">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-stack" aria-live="polite"></div>
+
+  <script src="/static/team.js?v=3"></script>
+</body>
+</html>

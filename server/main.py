@@ -15,11 +15,13 @@ import logging
 import time
 import uuid
 
-from fastapi import FastAPI, Form, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from starlette.middleware.sessions import SessionMiddleware
 
-from . import config, documents, speech, store
+from . import accounts, auth, config, documents, speech, store
 from .agent import InterviewSession, build_system_prompt
 from .speech import StreamingSTT
 from .vad import UtteranceDetector
@@ -29,20 +31,158 @@ log = logging.getLogger("interviewer")
 
 app = FastAPI()
 
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=config.SESSION_SECRET,
+    session_cookie="idc_session",
+    max_age=config.SESSION_MAX_AGE_DAYS * 24 * 60 * 60,
+    same_site="lax",
+    https_only=config.SESSION_HTTPS_ONLY,
+)
+
+accounts.seed_admin_if_empty(
+    config.ADMIN_USERNAME, config.ADMIN_PASSWORD, config.ADMIN_TEAM, config.ADMIN_NAME
+)
+
 
 @app.get("/")
-async def index():
+async def index(request: Request):
+    if auth.current_user(request) is None:
+        return RedirectResponse("/login")
+    return RedirectResponse("/welcome")
+
+
+@app.get("/login")
+async def login_page(request: Request):
+    if auth.current_user(request) is not None:
+        return RedirectResponse("/welcome")
+    return FileResponse("static/login.html")
+
+
+@app.get("/welcome")
+async def welcome_page(request: Request):
+    if auth.current_user(request) is None:
+        return RedirectResponse("/login")
+    return FileResponse("static/welcome.html")
+
+
+@app.get("/test-room")
+async def test_room_page(request: Request):
+    if auth.current_user(request) is None:
+        return RedirectResponse("/login")
     return FileResponse("static/index.html")
 
 
 @app.get("/ops")
-async def ops_page():
+async def ops_page(request: Request):
+    if auth.current_user(request) is None:
+        return RedirectResponse("/login")
     return FileResponse("static/ops.html")
+
+
+@app.get("/team")
+async def team_page(request: Request):
+    user = auth.current_user(request)
+    if user is None:
+        return RedirectResponse("/login")
+    if not user.get("is_admin"):
+        return RedirectResponse("/welcome")
+    return FileResponse("static/team.html")
 
 
 @app.get("/interview/{session_id}")
 async def join_page(session_id: str):
     return FileResponse("static/join.html")
+
+
+class LoginBody(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/api/auth/login")
+async def api_login(request: Request, body: LoginBody):
+    account = accounts.verify(body.username, body.password)
+    if account is None:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    request.session["user"] = {
+        "username": account["username"],
+        "name": account["name"],
+        "team": account["team"],
+        "is_admin": account.get("is_admin", False),
+    }
+    return {"ok": True, "redirect": "/welcome"}
+
+
+@app.post("/api/auth/logout")
+async def api_logout(request: Request):
+    request.session.clear()
+    return {"ok": True, "redirect": "/login"}
+
+
+@app.get("/api/auth/me")
+async def api_me(user: dict = Depends(auth.require_user)):
+    return user
+
+
+class ChangePasswordBody(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@app.post("/api/auth/change-password")
+async def change_password(body: ChangePasswordBody, user: dict = Depends(auth.require_user)):
+    if accounts.verify(user["username"], body.current_password) is None:
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+    if len(body.new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+    accounts.set_password(user["username"], body.new_password)
+    return {"ok": True}
+
+
+class CreateAccountBody(BaseModel):
+    username: str
+    name: str
+    team: str
+    is_admin: bool = False
+
+
+@app.get("/api/accounts")
+async def list_accounts(user: dict = Depends(auth.require_admin)):
+    return [{k: v for k, v in a.items() if k != "password_hash"} for a in accounts.list_all()]
+
+
+@app.post("/api/accounts")
+async def create_account(body: CreateAccountBody, user: dict = Depends(auth.require_admin)):
+    if accounts.get(body.username) is not None:
+        raise HTTPException(status_code=400, detail="That username is already taken")
+    password = accounts.generate_password()
+    accounts.create(body.username, password, body.team, body.name, is_admin=body.is_admin)
+    return {"username": body.username.strip().lower(), "password": password}
+
+
+@app.post("/api/accounts/{username}/reset-password")
+async def reset_account_password(username: str, user: dict = Depends(auth.require_admin)):
+    key = username.strip().lower()
+    if accounts.get(key) is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    password = accounts.generate_password()
+    accounts.set_password(key, password)
+    return {"username": key, "password": password}
+
+
+@app.delete("/api/accounts/{username}")
+async def delete_account(username: str, user: dict = Depends(auth.require_admin)):
+    key = username.strip().lower()
+    if key == user["username"]:
+        raise HTTPException(status_code=400, detail="You can't remove your own account")
+    target = accounts.get(key)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    if target.get("is_admin") and accounts.count_admins() <= 1:
+        raise HTTPException(status_code=400, detail="Can't remove the last admin")
+    accounts.delete(key)
+    return {"ok": True}
 
 
 @app.get("/api/interviews/{session_id}/public")
@@ -62,18 +202,19 @@ _sessions: dict[str, dict] = {}
 
 
 @app.get("/api/ops/sessions")
-async def ops_sessions():
+async def ops_sessions(user: dict = Depends(auth.require_user)):
     return store.list_all()
 
 
 @app.get("/api/ops/sessions/{session_id}")
-async def ops_session(session_id: str):
+async def ops_session(session_id: str, user: dict = Depends(auth.require_user)):
     rec = store.get(session_id)
     return rec if rec is not None else {"error": "not found"}
 
 
 @app.post("/api/session")
 async def create_session(
+    user: dict = Depends(auth.require_user),
     role: str = Form(""),
     duration_min: int = Form(0),
     jd_text: str = Form(""),

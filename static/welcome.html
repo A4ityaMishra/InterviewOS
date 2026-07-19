@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<title>InterviewOS — Home</title>
+<link rel="stylesheet" href="/static/theme.css?v=9">
+<style>
+  main { display: flex; flex-direction: column; align-items: center; padding: clamp(28px, 6vh, 64px) 20px 80px; gap: 34px; }
+  .hero { text-align: center; max-width: 640px; }
+  .hero h1 { margin-bottom: 8px; }
+  .hero p { color: var(--text-2); font-size: 1.05rem; }
+  .stats { width: 100%; max-width: 960px; }
+  .nav-card .glyph {
+    background: linear-gradient(165deg, #5ac8fa 0%, #0071e3 55%, #004fa3 100%);
+    box-shadow: 0 10px 30px rgba(0, 90, 180, .3); color: #fff;
+    display: grid; place-items: center; border-radius: 50%;
+  }
+  .nav-card.testroom .glyph {
+    background: linear-gradient(165deg, #6ee7a0, var(--green-deep));
+    box-shadow: 0 10px 30px rgba(36, 138, 61, .3);
+  }
+  .nav-card.team .glyph {
+    background: linear-gradient(165deg, #ffb84d, var(--orange-deep));
+    box-shadow: 0 10px 30px rgba(201, 52, 0, .3);
+  }
+  .account-row {
+    width: 100%; max-width: 960px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-1);
+    padding: 16px 20px;
+  }
+  .account-row .k { font-size: .84rem; color: var(--text-2); }
+  .account-row .k b { color: var(--text); font-weight: 600; }
+</style>
+</head>
+<body>
+  <header class="topnav">
+    <a class="brand" href="/welcome">
+      <span class="mark">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+          <path d="M6 10v4"/><path d="M12 5v14"/><path d="M18 8v8"/>
+        </svg>
+      </span>
+      InterviewOS
+    </a>
+    <nav aria-label="Primary">
+      <a href="/welcome" class="active" aria-current="page">Home</a>
+      <a href="/test-room">Interview Room</a>
+      <a href="/ops">Ops Dashboard</a>
+      <a href="/team" id="nav-team" hidden>Manage Team</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="user-chip" id="user-chip" hidden>
+      <span class="av" id="chip-av"></span>
+      <span class="name" id="chip-name"></span>
+      <button class="logout" id="logout-btn" type="button">Log out</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="hero">
+      <h1 id="greeting">Welcome back</h1>
+      <p>Pick up where you left off — review live interviews or try the flow yourself.</p>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><b id="st-total">—</b><span>Total</span></div>
+      <div class="stat live-stat"><b id="st-live">—</b><span>Live</span></div>
+      <div class="stat done-stat"><b id="st-done">—</b><span>Completed</span></div>
+    </div>
+
+    <div class="nav-cards">
+      <a class="nav-card" href="/ops">
+        <div class="glyph">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 4v5"/></svg>
+        </div>
+        <h3>Ops Dashboard</h3>
+        <p>Create interview links, watch live sessions, and review past transcripts.</p>
+        <span class="go">Open dashboard
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+        </span>
+      </a>
+      <a class="nav-card testroom" href="/test-room">
+        <div class="glyph">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 2a4 4 0 0 1 4 4v5a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/></svg>
+        </div>
+        <h3>Test Room</h3>
+        <p>Run through the interview yourself — try a JD, tune the pipeline, hear Sarah live.</p>
+        <span class="go">Start a test
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+        </span>
+      </a>
+      <a class="nav-card team" href="/team" id="team-card" hidden>
+        <div class="glyph">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <h3>Manage Team</h3>
+        <p>Add teammates, reset passwords, and control who has admin access.</p>
+        <span class="go">Manage team
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+        </span>
+      </a>
+    </div>
+
+    <div class="account-row">
+      <span class="k">Signed in as <b id="acct-name">—</b></span>
+      <button class="btn-secondary" id="change-pw-btn" type="button">Change password</button>
+    </div>
+  </main>
+
+  <div class="modal-scrim" id="pw-scrim" hidden>
+    <div class="modal">
+      <form id="pw-form">
+        <h3>Change password</h3>
+        <div class="sub">Choose a new password for your own account.</div>
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <label class="field">Current password
+            <input type="password" name="current_password" autocomplete="current-password" required>
+          </label>
+          <label class="field">New password
+            <input type="password" name="new_password" autocomplete="new-password" minlength="8" required>
+          </label>
+          <label class="field">Confirm new password
+            <input type="password" name="confirm_password" autocomplete="new-password" minlength="8" required>
+          </label>
+        </div>
+        <div class="err" id="pw-err" role="alert" hidden style="color:var(--red-deep); font-size:.86rem; margin-top:14px;"></div>
+        <div class="err" id="pw-success" role="status" hidden style="color:var(--green-deep); font-size:.86rem; margin-top:14px;">Password updated.</div>
+        <div class="actions">
+          <button type="button" class="btn-secondary" id="pw-cancel">Cancel</button>
+          <button type="submit" class="btn-primary" id="pw-submit">Update password</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast-stack" aria-live="polite"></div>
+
+  <script src="/static/welcome.js?v=3"></script>
+</body>
+</html>

@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 <title>Interview</title>
-<link rel="stylesheet" href="/static/theme.css?v=6">
+<link rel="stylesheet" href="/static/theme.css?v=9">
 <link rel="stylesheet" href="/static/call.css?v=1">
 <style>
   main { display: flex; flex-direction: column; align-items: center; padding: clamp(28px, 8vh, 100px) 20px 60px; }
@@ -63,11 +64,11 @@
   <header class="topnav">
     <a class="brand" href="/" style="pointer-events:none;">
       <span class="mark">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
-          <path d="M12 2a4 4 0 0 1 4 4v5a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+          <path d="M6 10v4"/><path d="M12 5v14"/><path d="M18 8v8"/>
         </svg>
       </span>
-      IDC Interviewer
+      InterviewOS
     </a>
     <div class="spacer"></div>
   </header>
@@ -188,8 +189,8 @@
       </div>
     </section>
 
-    <section class="card" id="done" hidden>
-      <div class="glyph good">
+    <section class="card step-panel" id="done" hidden>
+      <div class="glyph good" style="animation: pop-in .5s var(--ease);">
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
       </div>
       <h1 id="done-title">Interview complete</h1>

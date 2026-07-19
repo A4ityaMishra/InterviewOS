@@ -1,7 +1,9 @@
+import logging
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
+_log = logging.getLogger("interviewer.config")
 
 SARVAM_API_KEY = os.getenv("SARVAM_API_KEY", "")
 
@@ -54,3 +56,21 @@ HARD_TIMEOUT_GRACE_MIN = int(os.getenv("HARD_TIMEOUT_GRACE_MIN", "10"))
 # How long to wait for the model to produce the next chunk before treating the
 # response as hung and falling back to an error state.
 LLM_RESPONSE_TIMEOUT_S = int(os.getenv("LLM_RESPONSE_TIMEOUT_S", "45"))
+
+# ---------- Auth / sessions ----------
+SESSION_SECRET = os.getenv("SESSION_SECRET", "dev-insecure-secret-change-me")
+if SESSION_SECRET == "dev-insecure-secret-change-me":
+    _log.warning(
+        "SESSION_SECRET is using the insecure default — set a real secret "
+        "in .env before deploying."
+    )
+SESSION_MAX_AGE_DAYS = int(os.getenv("SESSION_MAX_AGE_DAYS", "14"))
+# set true in production behind HTTPS; false lets local http:// dev set cookies
+SESSION_HTTPS_ONLY = os.getenv("SESSION_HTTPS_ONLY", "false").lower() == "true"
+
+# First-run admin account, seeded once if data/accounts.json is empty/missing.
+# Add more teammates afterward with: python -m server.accounts add <user> <pass> --team ... --name "..."
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+ADMIN_NAME = os.getenv("ADMIN_NAME", "Admin")
+ADMIN_TEAM = os.getenv("ADMIN_TEAM", "technical")
