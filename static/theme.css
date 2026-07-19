@@ -52,6 +52,11 @@ h2 { font-weight: 700; letter-spacing: -.018em; }
 
 button { font: inherit; cursor: pointer; letter-spacing: inherit; }
 input, textarea, select { font: inherit; letter-spacing: inherit; }
+/* hide the native number spinner — it collides with the "min" unit suffix
+   sitting in the same corner of the field (see .input-suffix) */
+input[type="number"] { -moz-appearance: textfield; }
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
 :focus-visible { outline: 3px solid rgba(0, 113, 227, .45); outline-offset: 2px; border-radius: 6px; }
 
@@ -192,6 +197,7 @@ input, textarea, select { font: inherit; letter-spacing: inherit; }
 }
 .segmented label b { display: block; font-size: .88rem; font-weight: 600; line-height: 1.3; }
 .segmented label small { display: block; font-size: .74rem; font-weight: 400; color: var(--text-3); margin-top: 1px; line-height: 1.3; }
+.segmented input:not(:checked) + label:hover { background: rgba(0, 0, 0, .04); color: var(--text); }
 .segmented input:checked + label { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
 .segmented input:checked + label small { color: var(--text-2); }
 .segmented input:focus-visible + label { outline: 3px solid rgba(0, 113, 227, .45); outline-offset: 1px; }
@@ -390,7 +396,6 @@ input, textarea, select { font: inherit; letter-spacing: inherit; }
   opacity: 0;
 }
 #cursor-dot.show { opacity: 1; }
-#cursor-dot.hover { width: 46px; height: 46px; margin-left: -23px; margin-top: -23px; background: rgba(0, 113, 227, .12); }
 /* over text fields the dot morphs into a thin caret instead of disappearing
    — it never hands off to the native cursor, so there's no flicker back to
    the OS arrow when the pointer leaves the field afterward */

@@ -175,10 +175,6 @@
     }
     requestAnimationFrame(raf);
 
-    document.querySelectorAll("a, button, input, textarea, select, .card, .nav-card, .item, .row").forEach((el) => {
-      el.addEventListener("mouseenter", () => dot.classList.add("hover"));
-      el.addEventListener("mouseleave", () => dot.classList.remove("hover"));
-    });
     document.querySelectorAll("input, textarea, select").forEach((el) => {
       el.addEventListener("mouseenter", () => dot.classList.add("text-mode"));
       el.addEventListener("mouseleave", () => dot.classList.remove("text-mode"));
