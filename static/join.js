@@ -172,6 +172,7 @@ function showDone({ title, sub }) {
   doneSub.textContent = title === "Interview complete"
     ? sub
     : "Your responses so far have been saved. If you'd like to continue, please reach out to your recruiter for a new link.";
+  if (window.fxWordReveal) window.fxWordReveal(doneTitle);
 }
 
 startBtn.onclick = async () => {

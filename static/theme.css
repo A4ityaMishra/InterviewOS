@@ -105,21 +105,31 @@ input, textarea, select { font: inherit; letter-spacing: inherit; }
 }
 .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .badge.live { color: var(--green-deep); background: rgba(52, 199, 89, .14); }
+.badge.live::before { animation: live-breathe 1.6s ease-in-out infinite; }
+@keyframes live-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(52, 199, 89, .55); }
+  50% { box-shadow: 0 0 0 4px rgba(52, 199, 89, 0); }
+}
 .badge.completed { color: var(--blue); background: var(--blue-soft); }
 .badge.disconnected { color: var(--orange-deep); background: rgba(255, 149, 0, .14); }
 .badge.created { color: var(--text-3); }
 
-/* ---------- buttons ---------- */
+/* ---------- buttons ----------
+   --mx/--my are set by fx.js's magnetic-pull effect (0px when idle/absent);
+   composing them into the transform here means the JS nudge never clobbers
+   the hover-lift/press-scale below it, regardless of pseudo-class state. */
 .btn-primary {
+  --mx: 0px; --my: 0px;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   background: var(--blue); color: #fff;
   font-weight: 500; font-size: 1.02rem;
   border: 0; border-radius: 980px; padding: 14px 26px; min-height: 50px;
   box-shadow: 0 1px 2px rgba(0, 113, 227, .15);
+  transform: translate(var(--mx), var(--my));
   transition: background .2s var(--ease), transform .15s var(--ease), box-shadow .2s var(--ease);
 }
-.btn-primary:hover:not(:disabled) { background: var(--blue-hover); transform: translateY(-1px); box-shadow: 0 8px 20px rgba(0, 113, 227, .3); }
-.btn-primary:active:not(:disabled) { transform: scale(.97); box-shadow: 0 1px 2px rgba(0, 113, 227, .15); }
+.btn-primary:hover:not(:disabled) { background: var(--blue-hover); transform: translate(var(--mx), var(--my)) translateY(-1px); box-shadow: 0 8px 20px rgba(0, 113, 227, .3); }
+.btn-primary:active:not(:disabled) { transform: translate(var(--mx), var(--my)) scale(.97); box-shadow: 0 1px 2px rgba(0, 113, 227, .15); }
 .btn-primary:disabled { opacity: .45; cursor: default; }
 .btn-primary.success { background: var(--green-deep); }
 
@@ -245,13 +255,15 @@ input, textarea, select { font: inherit; letter-spacing: inherit; }
 
 /* ---------- "new x" pill button (new interview, add teammate, etc.) ---------- */
 .new-btn {
+  --mx: 0px; --my: 0px;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   background: var(--blue); color: #fff; font-weight: 600; font-size: .9rem;
   border: 0; border-radius: 12px; padding: 11px 16px;
+  transform: translate(var(--mx), var(--my));
   transition: background .2s var(--ease), transform .15s var(--ease), box-shadow .2s var(--ease);
 }
-.new-btn:hover { background: var(--blue-hover); transform: translateY(-1px); box-shadow: 0 8px 18px rgba(0, 113, 227, .28); }
-.new-btn:active { transform: scale(.96); }
+.new-btn:hover { background: var(--blue-hover); transform: translate(var(--mx), var(--my)) translateY(-1px); box-shadow: 0 8px 18px rgba(0, 113, 227, .28); }
+.new-btn:active { transform: translate(var(--mx), var(--my)) scale(.96); }
 
 /* ---------- modal (new interview, add teammate, change password, etc.) ----------
    Structure: .modal-scrim > .modal > form.field(s) + .actions, or a .link-result
@@ -343,6 +355,74 @@ input, textarea, select { font: inherit; letter-spacing: inherit; }
 @keyframes toast-out {
   from { opacity: 1; transform: translateY(0) scale(1); }
   to { opacity: 0; transform: translateY(8px) scale(.96); }
+}
+
+/* ---------- fx layer: fluid background, custom cursor, HUD readouts ----------
+   Shared across every page, driven by static/fx.js. Markup (added once per
+   page, right after <body>):
+     <canvas id="fx-canvas" aria-hidden="true"></canvas>
+     <div class="hud hud-left" id="hud-clock" aria-hidden="true"></div>
+     <div class="hud hud-right" id="hud-coords" aria-hidden="true">X 0000  Y 0000</div>
+     <div id="cursor-dot" aria-hidden="true"></div> */
+#fx-canvas {
+  position: fixed; inset: 0; width: 100%; height: 100%;
+  z-index: -2; pointer-events: none;
+}
+
+.hud {
+  position: fixed; bottom: 20px; z-index: 50;
+  font: 500 .72rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--text-3); letter-spacing: .04em;
+  pointer-events: none; user-select: none;
+  opacity: 0; transition: opacity .5s var(--ease);
+}
+.hud.show { opacity: 1; }
+.hud-left { left: 24px; }
+.hud-right { right: 24px; font-variant-numeric: tabular-nums; }
+.hud b { color: var(--text-2); font-weight: 600; }
+
+#cursor-dot {
+  position: fixed; top: 0; left: 0; width: 16px; height: 16px; border-radius: 50%;
+  border: 1.5px solid var(--blue); background: rgba(0, 113, 227, .1);
+  pointer-events: none; z-index: 500; margin-left: -8px; margin-top: -8px;
+  transition: width .2s var(--ease), height .2s var(--ease), border-radius .2s var(--ease),
+              background .2s var(--ease), border-color .2s var(--ease), opacity .3s var(--ease);
+  opacity: 0;
+}
+#cursor-dot.show { opacity: 1; }
+#cursor-dot.hover { width: 46px; height: 46px; margin-left: -23px; margin-top: -23px; background: rgba(0, 113, 227, .12); }
+/* over text fields the dot morphs into a thin caret instead of disappearing
+   — it never hands off to the native cursor, so there's no flicker back to
+   the OS arrow when the pointer leaves the field afterward */
+#cursor-dot.text-mode {
+  width: 2px; height: 22px; margin-left: -1px; margin-top: -11px;
+  border-radius: 1px; border: none; background: var(--blue);
+}
+
+/* native cursor is hidden everywhere once fx.js confirms a fine pointer +
+   no prefers-reduced-motion (see fx.js) — touch/reduced-motion users never
+   lose their cursor. Must be a universal descendant rule + !important:
+   `cursor` on body alone only wins by inheritance, and inheritance loses to
+   ANY matching rule — including this file's own `button { cursor: pointer }`
+   and the browser's native text-cursor behavior on inputs/textareas. */
+body.fx-cursor, body.fx-cursor * { cursor: none !important; }
+
+/* hover highlight for text-like fields — the whole box lights up in the
+   theme blue, paired with the custom cursor's caret morph above, instead of
+   the field only reacting on focus. Applies everywhere (login, ops/team
+   modals, the test-room JD form, etc.) from one place. */
+input[type="text"]:hover, input[type="password"]:hover, input[type="number"]:hover,
+input[type="search"]:hover, input[type="email"]:hover, textarea:hover, select:hover {
+  border-color: var(--blue) !important;
+  box-shadow: 0 0 0 4px rgba(0, 113, 227, .14) !important;
+}
+
+.card h1 .word, .hero h1 .word, #done h1 .word, #view-title .word { display: inline-block; overflow: hidden; vertical-align: top; }
+.card h1 .word-inner, .hero h1 .word-inner, #done h1 .word-inner, #view-title .word-inner { display: inline-block; animation: word-in .55s var(--ease) both; }
+@keyframes word-in { from { transform: translateY(110%); } to { transform: translateY(0); } }
+
+@media (pointer: coarse) {
+  #cursor-dot, .hud { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

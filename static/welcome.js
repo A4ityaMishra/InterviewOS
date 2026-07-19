@@ -29,7 +29,9 @@ async function loadMe() {
   const resp = await fetch("/api/auth/me");
   if (resp.status === 401) { window.location.href = "/login"; return; }
   const user = await resp.json();
-  document.getElementById("greeting").textContent = `Welcome back, ${user.name}`;
+  const greeting = document.getElementById("greeting");
+  greeting.textContent = `Welcome back, ${user.name}`;
+  if (window.fxWordReveal) window.fxWordReveal(greeting);
   document.getElementById("chip-name").textContent = user.name;
   document.getElementById("acct-name").textContent = user.name;
   const av = document.getElementById("chip-av");

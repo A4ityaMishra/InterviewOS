@@ -13,6 +13,10 @@ const stDone = document.getElementById("st-done");
 
 let selectedId = null;
 let allSessions = [];
+let hasRenderedOnce = false;
+const prevMessageCounts = new Map();
+let renderedForId = null;
+let renderedMessageCount = 0;
 
 const toastStack = document.getElementById("toast-stack");
 function showToast(message, type = "error") {
@@ -81,9 +85,14 @@ function renderSessions() {
     }</div>`;
     return;
   }
-  for (const s of sessions) {
+  sessions.forEach((s, i) => {
+    const prevCount = prevMessageCounts.get(s.id);
+    const justGotNewMessage = hasRenderedOnce && s.status === "live" && prevCount !== undefined && s.message_count > prevCount;
+    prevMessageCounts.set(s.id, s.message_count);
+
     const btn = document.createElement("button");
-    btn.className = `item${s.id === selectedId ? " active" : ""}`;
+    btn.className = `item${s.id === selectedId ? " active" : ""}${hasRenderedOnce ? "" : " entering"}${justGotNewMessage ? " flash" : ""}`;
+    if (!hasRenderedOnce) btn.style.animationDelay = `${Math.min(i, 10) * 0.03}s`;
     btn.innerHTML = `
       <div class="av" style="${avStyle(s.role)}"></div>
       <div class="info">
@@ -100,7 +109,8 @@ function renderSessions() {
     btn.querySelector(".role").textContent = s.role;
     btn.onclick = () => select(s.id);
     sessionsEl.appendChild(btn);
-  }
+  });
+  hasRenderedOnce = true;
 }
 
 async function select(id) {
@@ -117,7 +127,11 @@ async function loadTranscript() {
   const d = await resp.json();
   if (d.error) return;
 
-  titleEl.textContent = d.role;
+  if (titleEl.textContent !== d.role) {
+    titleEl.textContent = d.role;
+    delete titleEl.dataset.fxDone;
+    if (window.fxWordReveal) window.fxWordReveal(titleEl);
+  }
   const engineNote = d.provider === "realtime" ? " · realtime mini" : "";
   metaEl.textContent = `${fmtTime(d.created_at)} · planned ${d.duration_min} min · ${d.messages.length} turns${engineNote}`;
   viewAv.hidden = false;
@@ -130,13 +144,9 @@ async function loadTranscript() {
   const atBottom =
     transcriptEl.scrollHeight - transcriptEl.scrollTop - transcriptEl.clientHeight < 60;
 
-  transcriptEl.innerHTML = "";
-  if (!d.messages.length) {
-    transcriptEl.innerHTML = `<div class="placeholder">No conversation recorded yet.</div>`;
-  }
-  for (const m of d.messages) {
+  function buildTurn(m, isNew) {
     const turn = document.createElement("div");
-    turn.className = `turn ${m.speaker}`;
+    turn.className = `turn ${m.speaker}${isNew ? " new-turn" : ""}`;
     const who = document.createElement("div");
     who.className = "who";
     who.innerHTML = `<span></span><time>${fmtClock(m.ts)}</time>`;
@@ -151,9 +161,32 @@ async function loadTranscript() {
       cut.textContent = "interrupted by candidate";
       turn.appendChild(cut);
     }
-    transcriptEl.appendChild(turn);
+    return turn;
   }
-  if (atBottom) transcriptEl.scrollTop = transcriptEl.scrollHeight;
+
+  // switching to a different session (or first load) — full rebuild, no
+  // per-message "new" animation. Re-polling the SAME session only appends
+  // whatever arrived since the last poll, so already-read messages never
+  // replay their entrance.
+  const isFreshSession = renderedForId !== selectedId;
+  if (isFreshSession) {
+    transcriptEl.innerHTML = "";
+    if (!d.messages.length) {
+      transcriptEl.innerHTML = `<div class="placeholder">No conversation recorded yet.</div>`;
+    }
+    for (const m of d.messages) transcriptEl.appendChild(buildTurn(m, false));
+    renderedForId = selectedId;
+    renderedMessageCount = d.messages.length;
+    transcriptEl.scrollTop = transcriptEl.scrollHeight;
+  } else if (d.messages.length > renderedMessageCount) {
+    const placeholder = transcriptEl.querySelector(".placeholder");
+    if (placeholder) placeholder.remove();
+    for (const m of d.messages.slice(renderedMessageCount)) {
+      transcriptEl.appendChild(buildTurn(m, true));
+    }
+    renderedMessageCount = d.messages.length;
+    if (atBottom) transcriptEl.scrollTo({ top: transcriptEl.scrollHeight, behavior: "smooth" });
+  }
 }
 
 backBtn.onclick = () => {

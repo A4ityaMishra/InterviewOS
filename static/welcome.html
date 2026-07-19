@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 <title>InterviewOS — Home</title>
-<link rel="stylesheet" href="/static/theme.css?v=9">
+<link rel="stylesheet" href="/static/theme.css?v=13">
 <style>
   main { display: flex; flex-direction: column; align-items: center; padding: clamp(28px, 6vh, 64px) 20px 80px; gap: 34px; }
   .hero { text-align: center; max-width: 640px; }
@@ -36,6 +36,11 @@
 </style>
 </head>
 <body>
+  <canvas id="fx-canvas" aria-hidden="true"></canvas>
+  <div class="hud hud-left" id="hud-clock" aria-hidden="true"></div>
+  <div class="hud hud-right" id="hud-coords" aria-hidden="true">X 0000&nbsp;&nbsp;Y 0000</div>
+  <div id="cursor-dot" aria-hidden="true"></div>
+
   <header class="topnav">
     <a class="brand" href="/welcome">
       <span class="mark">
@@ -138,6 +143,7 @@
 
   <div id="toast-stack" aria-live="polite"></div>
 
-  <script src="/static/welcome.js?v=3"></script>
+  <script src="/static/welcome.js?v=4"></script>
+  <script src="/static/fx.js?v=3"></script>
 </body>
 </html>

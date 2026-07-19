@@ -93,6 +93,7 @@ function showDone({ title, sub }) {
   doneCard.hidden = false;
   doneTitle.textContent = title;
   doneSub.textContent = sub;
+  if (window.fxWordReveal) window.fxWordReveal(doneTitle);
 }
 
 setupForm.onsubmit = async (e) => {

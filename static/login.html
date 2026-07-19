@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 <title>Sign in — InterviewOS</title>
-<link rel="stylesheet" href="/static/theme.css?v=9">
+<link rel="stylesheet" href="/static/theme.css?v=13">
 <style>
   main { display: flex; align-items: center; justify-content: center; min-height: calc(100dvh - 54px); padding: 20px; }
 
@@ -64,9 +64,16 @@
   .err svg { flex: none; }
 
   .hint { text-align: center; color: var(--text-3); font-size: .82rem; margin-top: 22px; line-height: 1.5; }
+
+  .card { perspective: 900px; }
 </style>
 </head>
 <body>
+  <canvas id="fx-canvas" aria-hidden="true"></canvas>
+  <div class="hud hud-left" id="hud-clock" aria-hidden="true"></div>
+  <div class="hud hud-right" id="hud-coords" aria-hidden="true">X 0000&nbsp;&nbsp;Y 0000</div>
+  <div id="cursor-dot" aria-hidden="true"></div>
+
   <header class="topnav">
     <a class="brand" href="/login" style="pointer-events:none;">
       <span class="mark">
@@ -115,5 +122,7 @@
   </main>
 
   <script src="/static/login.js?v=2"></script>
+  <script src="/static/fx.js?v=3"></script>
+  <script>window.fxWordReveal(document.querySelector(".card h1"));</script>
 </body>
 </html>
