@@ -6,6 +6,7 @@ session created from an approved application.
 """
 
 import json
+import re
 import time
 import uuid
 from pathlib import Path
@@ -18,9 +19,20 @@ def _path(posting_id: str) -> Path:
     return DATA_DIR / f"{posting_id}.json"
 
 
+def _make_id(role: str) -> str:
+    """role-slug-xxxx — readable in HR/ops instead of a raw uuid4 hex, with a
+    short random suffix so re-posting the same role name doesn't collide."""
+    slug = re.sub(r"[^a-z0-9]+", "-", role.strip().lower()).strip("-")[:60] or "role"
+    for _ in range(5):
+        posting_id = f"{slug}-{uuid.uuid4().hex[:4]}"
+        if not _path(posting_id).exists():
+            return posting_id
+    return f"{slug}-{uuid.uuid4().hex[:12]}"
+
+
 def request(role: str, notes: str, created_by: str, duration_min: int = 0) -> dict:
     """Ops asks HR to post a role — no JD yet, just role + why."""
-    posting_id = uuid.uuid4().hex
+    posting_id = _make_id(role)
     data = {
         "id": posting_id,
         "role": role,
@@ -40,7 +52,7 @@ def request(role: str, notes: str, created_by: str, duration_min: int = 0) -> di
 
 def create(role: str, jd_text: str, duration_min: int, created_by: str, topics: str = "") -> dict:
     """HR/admin creates and immediately publishes a posting."""
-    posting_id = uuid.uuid4().hex
+    posting_id = _make_id(role)
     now = time.time()
     data = {
         "id": posting_id,
@@ -82,6 +94,21 @@ def close(posting_id: str) -> dict | None:
     data["closed_at"] = time.time()
     _write(posting_id, data)
     return data
+
+
+def find_open_by_jd(jd_text: str, exclude_id: str | None = None) -> dict | None:
+    """Find an already-open posting with the same JD text (whitespace
+    differences aside), so HR doesn't accidentally publish a duplicate role.
+    Closed postings are ignored — reposting the same JD to reopen a role is fine."""
+    normalized = " ".join(jd_text.split())
+    if not normalized:
+        return None
+    for p in list_all():
+        if p["id"] == exclude_id or p["status"] != "open":
+            continue
+        if " ".join(p["jd_text"].split()) == normalized:
+            return p
+    return None
 
 
 def get(posting_id: str) -> dict | None:

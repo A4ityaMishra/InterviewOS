@@ -138,7 +138,7 @@ function renderSessions() {
           <span>·</span>
           <span>${s.message_count} turns</span>
           ${s.provider === "realtime" ? '<span>·</span><span class="engine-tag">realtime</span>' : ""}
-          ${s.job_id !== s.id ? `<span>·</span><span class="id-tag" title="Job ID (shared JD): ${s.job_id}">job #${s.job_id.slice(0, 8)}</span>` : ""}
+          ${s.job_id !== s.id ? `<span>·</span><span class="id-tag" title="Posting ID: ${s.job_id}">posting #${s.job_id.slice(0, 8)}</span>` : ""}
           <span>·</span>
           <span class="id-tag" title="${s.id}">#${s.id.slice(0, 8)}</span>
         </div>

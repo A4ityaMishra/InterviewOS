@@ -406,6 +406,23 @@ async def request_posting(
     return postings.request(role.strip(), notes.strip(), user["username"], duration_min)
 
 
+@app.post("/api/postings/check-duplicate")
+async def check_duplicate_posting(
+    jd_text: str = Form(""),
+    exclude_id: str = Form(""),
+    jd_file: UploadFile | None = None,
+    user: dict = Depends(auth.require_hr),
+):
+    """Lets the HR create/publish forms warn before submit if this JD already
+    matches an open posting, instead of only finding out after submitting."""
+    if jd_file is not None and jd_file.filename:
+        jd_text = documents.extract_text(jd_file.filename, await jd_file.read())
+    match = postings.find_open_by_jd(jd_text, exclude_id=exclude_id.strip() or None)
+    if match is None:
+        return {"duplicate": False}
+    return {"duplicate": True, "posting_id": match["id"], "role": match["role"]}
+
+
 @app.post("/api/postings")
 async def create_posting(
     role: str = Form(""),
@@ -422,6 +439,13 @@ async def create_posting(
         raise HTTPException(status_code=400, detail="Role is required")
     if not jd_text.strip():
         raise HTTPException(status_code=400, detail="A job description is required")
+    dup = postings.find_open_by_jd(jd_text)
+    if dup is not None:
+        raise HTTPException(status_code=409, detail={
+            "message": f'A posting for "{dup["role"]}" with this exact job description is already open.',
+            "posting_id": dup["id"],
+            "role": dup["role"],
+        })
     return postings.create(
         role=role.strip(),
         jd_text=jd_text.strip(),
@@ -445,6 +469,13 @@ async def publish_posting(
         jd_text = documents.extract_text(jd_file.filename, await jd_file.read())
     if not jd_text.strip():
         raise HTTPException(status_code=400, detail="A job description is required")
+    dup = postings.find_open_by_jd(jd_text, exclude_id=posting_id)
+    if dup is not None:
+        raise HTTPException(status_code=409, detail={
+            "message": f'A posting for "{dup["role"]}" with this exact job description is already open.',
+            "posting_id": dup["id"],
+            "role": dup["role"],
+        })
     posting = postings.publish(posting_id, jd_text.strip(), duration_min, topics.strip())
     if posting is None:
         raise HTTPException(status_code=404, detail="Posting not found")

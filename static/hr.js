@@ -247,6 +247,7 @@ function selectApplication(id) {
   detailEl.innerHTML = `
     <div class="review-list">
       <div class="review-row"><span class="k">Applying for</span><span class="v">${roleLabel(a.job_id, posting)}</span></div>
+      <div class="review-row"><span class="k">Posting ID</span><span class="v ${a.job_id === GENERAL_JOB_ID ? "muted" : ""}" id="app-posting-id-value" ${a.job_id === GENERAL_JOB_ID ? "" : 'style="font-family: ui-monospace, monospace; cursor: pointer;" title="Click to copy"'}>${a.job_id === GENERAL_JOB_ID ? "No posting — general application" : a.job_id}</span></div>
       <div class="review-row"><span class="k">Email</span><span class="v">${a.applicant_email}</span></div>
       <div class="review-row"><span class="k">Phone</span><span class="v ${a.applicant_phone ? "" : "muted"}">${a.applicant_phone || "Not provided"}</span></div>
       <div class="review-row"><span class="k">Reviewed by</span><span class="v ${a.reviewed_by ? "" : "muted"}">${a.reviewed_by || "Not yet reviewed"}</span></div>
@@ -260,6 +261,17 @@ function selectApplication(id) {
   const rejectBtn = document.getElementById("act-reject");
   if (approveBtn) approveBtn.onclick = () => approveApplication(a.id);
   if (rejectBtn) rejectBtn.onclick = () => openRejectModal(a.id);
+
+  if (a.job_id !== GENERAL_JOB_ID) {
+    document.getElementById("app-posting-id-value").onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(a.job_id);
+      } catch {
+        /* clipboard API unavailable — nothing more we can do here */
+      }
+      showToast("Posting ID copied.", "success");
+    };
+  }
 }
 
 async function approveApplication(id) {
@@ -358,6 +370,7 @@ function selectPosting(id) {
 
   detailEl.innerHTML = `
     <div class="review-list">
+      <div class="review-row"><span class="k">Posting ID</span><span class="v" id="posting-id-value" style="font-family: ui-monospace, monospace; cursor: pointer;" title="Click to copy">${p.id}</span></div>
       <div class="review-row"><span class="k">Applications</span><span class="v">${appCount}</span></div>
     </div>
     ${p.notes ? `<div class="sub" style="margin-bottom:8px;">Request note from ${p.created_by}</div><div class="jd-viewer scrollable">${p.notes}</div>` : ""}
@@ -368,6 +381,15 @@ function selectPosting(id) {
   const closeBtn = document.getElementById("act-close");
   if (publishBtn) publishBtn.onclick = () => openPublishModal(p);
   if (closeBtn) closeBtn.onclick = () => closePosting(p.id);
+
+  document.getElementById("posting-id-value").onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(p.id);
+    } catch {
+      /* clipboard API unavailable — nothing more we can do here */
+    }
+    showToast("Posting ID copied.", "success");
+  };
 }
 
 async function closePosting(id) {
@@ -379,17 +401,59 @@ async function closePosting(id) {
   selectPosting(id);
 }
 
+// ---------- duplicate-JD detection (shared by create + publish) ----------
+function goToPosting(id) {
+  createScrim.hidden = true;
+  publishScrim.hidden = true;
+  switchTab("postings");
+  selectPosting(id);
+}
+
+function renderDuplicateErr(errEl, message, postingId) {
+  errEl.textContent = "";
+  errEl.appendChild(document.createTextNode(message + " "));
+  const link = document.createElement("a");
+  link.href = "#";
+  link.textContent = "View posting →";
+  link.style.color = "var(--blue)";
+  link.style.fontWeight = "600";
+  link.onclick = (e) => { e.preventDefault(); goToPosting(postingId); };
+  errEl.appendChild(link);
+  errEl.hidden = false;
+}
+
+async function checkDuplicateJd(jdText, jdFile, excludeId) {
+  if (!jdText.trim() && !(jdFile && jdFile.name)) return null;
+  const fd = new FormData();
+  fd.set("jd_text", jdText);
+  if (excludeId) fd.set("exclude_id", excludeId);
+  if (jdFile) fd.set("jd_file", jdFile);
+  const resp = await fetch("/api/postings/check-duplicate", { method: "POST", body: fd });
+  if (!resp.ok) return null;
+  const body = await resp.json();
+  return body.duplicate ? body : null;
+}
+
 // ---------- create posting modal ----------
 const createScrim = document.getElementById("create-posting-scrim");
 const createForm = document.getElementById("create-posting-form");
 const createErr = document.getElementById("create-posting-err");
 const createSubmit = document.getElementById("create-posting-submit");
+const cpJdTextarea = createForm.querySelector('textarea[name="jd_text"]');
+const cpJdFileInput = createForm.querySelector('input[name="jd_file"]');
 newPostingBtn.onclick = () => { createForm.reset(); createErr.hidden = true; createScrim.hidden = false; };
 document.getElementById("create-posting-cancel").onclick = () => { createScrim.hidden = true; };
 createScrim.addEventListener("click", (e) => { if (e.target === createScrim) createScrim.hidden = true; });
-document.querySelector("#cp-jd-drop input").addEventListener("change", function () {
+document.querySelector("#cp-jd-drop input").addEventListener("change", async function () {
   const span = this.closest(".dropzone").querySelector("span");
   span.textContent = this.files[0] ? this.files[0].name : span.dataset.empty;
+  const dup = await checkDuplicateJd(cpJdTextarea.value, this.files[0], null);
+  if (dup) renderDuplicateErr(createErr, `A posting for "${dup.role}" with this exact job description is already open.`, dup.posting_id);
+});
+cpJdTextarea.addEventListener("blur", async () => {
+  const dup = await checkDuplicateJd(cpJdTextarea.value, cpJdFileInput.files[0], null);
+  if (dup) renderDuplicateErr(createErr, `A posting for "${dup.role}" with this exact job description is already open.`, dup.posting_id);
+  else createErr.hidden = true;
 });
 createForm.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -405,8 +469,12 @@ createForm.addEventListener("submit", async (e) => {
     const resp = await fetch("/api/postings", { method: "POST", body: fd });
     if (!resp.ok) {
       const body = await resp.json().catch(() => ({}));
-      createErr.textContent = body.detail || "Could not create this posting.";
-      createErr.hidden = false;
+      if (body.detail && typeof body.detail === "object" && body.detail.posting_id) {
+        renderDuplicateErr(createErr, body.detail.message, body.detail.posting_id);
+      } else {
+        createErr.textContent = body.detail || "Could not create this posting.";
+        createErr.hidden = false;
+      }
       return;
     }
     createScrim.hidden = true;
@@ -422,6 +490,8 @@ const publishScrim = document.getElementById("publish-scrim");
 const publishForm = document.getElementById("publish-form");
 const publishErr = document.getElementById("publish-err");
 const publishSubmit = document.getElementById("publish-submit");
+const pubJdTextarea = publishForm.querySelector('textarea[name="jd_text"]');
+const pubJdFileInput = publishForm.querySelector('input[name="jd_file"]');
 let publishingId = null;
 function openPublishModal(p) {
   publishingId = p.id;
@@ -433,9 +503,16 @@ function openPublishModal(p) {
 }
 document.getElementById("publish-cancel").onclick = () => { publishScrim.hidden = true; };
 publishScrim.addEventListener("click", (e) => { if (e.target === publishScrim) publishScrim.hidden = true; });
-document.querySelector("#pub-jd-drop input").addEventListener("change", function () {
+document.querySelector("#pub-jd-drop input").addEventListener("change", async function () {
   const span = this.closest(".dropzone").querySelector("span");
   span.textContent = this.files[0] ? this.files[0].name : span.dataset.empty;
+  const dup = await checkDuplicateJd(pubJdTextarea.value, this.files[0], publishingId);
+  if (dup) renderDuplicateErr(publishErr, `A posting for "${dup.role}" with this exact job description is already open.`, dup.posting_id);
+});
+pubJdTextarea.addEventListener("blur", async () => {
+  const dup = await checkDuplicateJd(pubJdTextarea.value, pubJdFileInput.files[0], publishingId);
+  if (dup) renderDuplicateErr(publishErr, `A posting for "${dup.role}" with this exact job description is already open.`, dup.posting_id);
+  else publishErr.hidden = true;
 });
 publishForm.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -451,8 +528,12 @@ publishForm.addEventListener("submit", async (e) => {
     const resp = await fetch(`/api/postings/${publishingId}/publish`, { method: "POST", body: fd });
     if (!resp.ok) {
       const body = await resp.json().catch(() => ({}));
-      publishErr.textContent = body.detail || "Could not publish this posting.";
-      publishErr.hidden = false;
+      if (body.detail && typeof body.detail === "object" && body.detail.posting_id) {
+        renderDuplicateErr(publishErr, body.detail.message, body.detail.posting_id);
+      } else {
+        publishErr.textContent = body.detail || "Could not publish this posting.";
+        publishErr.hidden = false;
+      }
       return;
     }
     publishScrim.hidden = true;
