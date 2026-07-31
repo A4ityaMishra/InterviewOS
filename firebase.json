@@ -1,0 +1,16 @@
+{
+  "hosting": {
+    "site": "interviewos",
+    "public": "firebase_public",
+    "ignore": ["firebase.json", "**/.*"],
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "interviewos",
+          "region": "asia-south1"
+        }
+      }
+    ]
+  }
+}
