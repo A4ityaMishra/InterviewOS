@@ -32,8 +32,11 @@ def _get_client() -> AsyncOpenAI:
     return _client
 
 
-async def stream_chat(messages: list[dict]) -> AsyncIterator[str]:
-    """Yields text deltas, timing out if the model stalls."""
+async def stream_chat(messages: list[dict], usage: dict | None = None) -> AsyncIterator[str]:
+    """Yields text deltas, timing out if the model stalls.
+
+    If `usage` is passed, it's mutated in place with prompt/completion token
+    counts once the final usage-only chunk arrives (for cost estimation)."""
     stream = await asyncio.wait_for(
         _get_client().chat.completions.create(
             model=_model,
@@ -41,6 +44,7 @@ async def stream_chat(messages: list[dict]) -> AsyncIterator[str]:
             stream=True,
             temperature=0.6,
             max_tokens=300,
+            stream_options={"include_usage": True},
         ),
         timeout=config.LLM_RESPONSE_TIMEOUT_S,
     )
@@ -50,6 +54,14 @@ async def stream_chat(messages: list[dict]) -> AsyncIterator[str]:
             chunk = await asyncio.wait_for(anext(iterator), timeout=config.LLM_RESPONSE_TIMEOUT_S)
         except StopAsyncIteration:
             break
+        if usage is not None and chunk.usage is not None:
+            usage["prompt_tokens"] = chunk.usage.prompt_tokens
+            usage["completion_tokens"] = chunk.usage.completion_tokens
         delta = chunk.choices[0].delta.content if chunk.choices else None
         if delta:
             yield delta
+
+
+def current_model() -> str:
+    _get_client()  # ensures _model is resolved
+    return _model

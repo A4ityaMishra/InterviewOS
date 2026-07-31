@@ -13,10 +13,12 @@ log = logging.getLogger("interviewer.speech")
 if config.SPEECH_PROVIDER == "elevenlabs" and config.ELEVENLABS_API_KEY:
     from .elevenlabs import StreamingSTT, synthesize, transcribe  # noqa: F401
 
+    ACTIVE_PROVIDER = "elevenlabs"
     log.info("speech provider: elevenlabs")
 elif config.SPEECH_PROVIDER == "smallest" and config.SMALLEST_API_KEY:
     from .smallest import StreamingSTT, synthesize, transcribe  # noqa: F401
 
+    ACTIVE_PROVIDER = "smallest"
     log.info("speech provider: smallest.ai (TTS) + openai whisper (STT)")
 else:
     if config.SPEECH_PROVIDER == "elevenlabs":
@@ -32,4 +34,5 @@ else:
     from .sarvam import synthesize, transcribe  # noqa: F401
     from .stt_stream import StreamingSTT  # noqa: F401
 
+    ACTIVE_PROVIDER = "sarvam"
     log.info("speech provider: sarvam")

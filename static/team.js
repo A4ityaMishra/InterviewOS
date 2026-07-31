@@ -45,6 +45,55 @@ document.getElementById("logout-btn").addEventListener("click", async () => {
   window.location.href = "/login";
 });
 
+// ---------- change password ----------
+const pwScrim = document.getElementById("pw-scrim");
+const pwForm = document.getElementById("pw-form");
+const pwErr = document.getElementById("pw-err");
+const pwSuccess = document.getElementById("pw-success");
+const pwSubmit = document.getElementById("pw-submit");
+
+document.getElementById("change-pw-btn").addEventListener("click", () => {
+  pwForm.reset();
+  pwForm.hidden = false;
+  pwErr.hidden = true;
+  pwSuccess.hidden = true;
+  pwScrim.hidden = false;
+});
+document.getElementById("pw-cancel").addEventListener("click", () => { pwScrim.hidden = true; });
+pwScrim.addEventListener("click", (e) => { if (e.target === pwScrim) pwScrim.hidden = true; });
+
+pwForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  pwErr.hidden = true;
+  const fd = new FormData(pwForm);
+  const newPassword = fd.get("new_password");
+  if (newPassword !== fd.get("confirm_password")) {
+    pwErr.textContent = "New password and confirmation don't match.";
+    pwErr.hidden = false;
+    return;
+  }
+  pwSubmit.disabled = true;
+  pwSubmit.textContent = "Updating…";
+  try {
+    const resp = await fetch("/api/auth/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current_password: fd.get("current_password"), new_password: newPassword }),
+    });
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      pwErr.textContent = body.detail || "Could not update your password.";
+      pwErr.hidden = false;
+      return;
+    }
+    pwForm.hidden = true;
+    pwSuccess.hidden = false;
+  } finally {
+    pwSubmit.disabled = false;
+    pwSubmit.textContent = "Update password";
+  }
+});
+
 async function loadAccounts() {
   const resp = await fetch("/api/accounts");
   if (resp.status === 401) { window.location.href = "/login"; return; }

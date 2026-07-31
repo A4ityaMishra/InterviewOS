@@ -1,6 +1,7 @@
 const sessionsEl = document.getElementById("sessions");
 const transcriptEl = document.getElementById("transcript");
 const titleEl = document.getElementById("view-title");
+const titleBtn = document.getElementById("view-title-btn");
 const metaEl = document.getElementById("view-meta");
 const statusEl = document.getElementById("view-status");
 const shell = document.getElementById("shell");
@@ -13,10 +14,33 @@ const stDone = document.getElementById("st-done");
 
 let selectedId = null;
 let allSessions = [];
+let currentDetail = null;
 let hasRenderedOnce = false;
 const prevMessageCounts = new Map();
 let renderedForId = null;
 let renderedMessageCount = 0;
+
+let statusFilter = "all"; // all | live | completed
+let timeFilter = "all"; // all | 24h | 7d | 30d
+let sortOrder = "newest"; // newest | oldest
+const TIME_FILTER_MS = { "24h": 864e5, "7d": 7 * 864e5, "30d": 30 * 864e5 };
+
+const timeFilterEl = document.getElementById("time-filter");
+const sortOrderEl = document.getElementById("sort-order");
+const statTiles = document.querySelectorAll(".stats .stat[data-filter]");
+statTiles.forEach((el) => {
+  el.addEventListener("click", () => {
+    statusFilter = el.dataset.filter;
+    statTiles.forEach((t) => {
+      const active = t === el;
+      t.classList.toggle("active", active);
+      t.setAttribute("aria-checked", active ? "true" : "false");
+    });
+    renderSessions();
+  });
+});
+timeFilterEl.addEventListener("change", () => { timeFilter = timeFilterEl.value; renderSessions(); });
+sortOrderEl.addEventListener("change", () => { sortOrder = sortOrderEl.value; renderSessions(); });
 
 const toastStack = document.getElementById("toast-stack");
 function showToast(message, type = "error") {
@@ -77,11 +101,23 @@ async function loadSessions() {
 
 function renderSessions() {
   const q = filterEl.value.trim().toLowerCase();
-  const sessions = q ? allSessions.filter(s => s.role.toLowerCase().includes(q)) : allSessions;
+  const anyFilterActive = q || statusFilter !== "all" || timeFilter !== "all";
+  const cutoffMs = TIME_FILTER_MS[timeFilter];
+
+  let sessions = allSessions.filter((s) => {
+    if (q && !s.role.toLowerCase().includes(q) && !s.id.toLowerCase().includes(q) && !s.job_id.toLowerCase().includes(q)) return false;
+    if (statusFilter !== "all" && s.status !== statusFilter) return false;
+    if (cutoffMs && Date.now() - s.created_at * 1000 > cutoffMs) return false;
+    return true;
+  });
+  sessions = sessions.slice().sort((a, b) =>
+    sortOrder === "newest" ? b.created_at - a.created_at : a.created_at - b.created_at
+  );
+
   sessionsEl.innerHTML = "";
   if (!sessions.length) {
     sessionsEl.innerHTML = `<div class="empty">${
-      q ? "No interviews match that filter." : "No interviews yet.<br>Sessions appear here as soon as one is created."
+      anyFilterActive ? "No interviews match these filters." : "No interviews yet.<br>Sessions appear here as soon as one is created."
     }</div>`;
     return;
   }
@@ -102,6 +138,9 @@ function renderSessions() {
           <span>·</span>
           <span>${s.message_count} turns</span>
           ${s.provider === "realtime" ? '<span>·</span><span class="engine-tag">realtime</span>' : ""}
+          ${s.job_id !== s.id ? `<span>·</span><span class="id-tag" title="Job ID (shared JD): ${s.job_id}">job #${s.job_id.slice(0, 8)}</span>` : ""}
+          <span>·</span>
+          <span class="id-tag" title="${s.id}">#${s.id.slice(0, 8)}</span>
         </div>
       </div>
       <span class="badge ${s.status}">${s.status}</span>`;
@@ -115,6 +154,10 @@ function renderSessions() {
 
 async function select(id) {
   selectedId = id;
+  if (currentDetail && currentDetail.id !== id) {
+    currentDetail = null;
+    titleBtn.disabled = true;
+  }
   shell.classList.add("viewing");
   await loadTranscript();
   renderSessions();
@@ -126,6 +169,8 @@ async function loadTranscript() {
   if (resp.status === 401) { window.location.href = "/login"; return; }
   const d = await resp.json();
   if (d.error) return;
+  currentDetail = d;
+  titleBtn.disabled = false;
 
   if (titleEl.textContent !== d.role) {
     titleEl.textContent = d.role;
@@ -192,6 +237,8 @@ async function loadTranscript() {
 backBtn.onclick = () => {
   shell.classList.remove("viewing");
   selectedId = null;
+  currentDetail = null;
+  titleBtn.disabled = true;
   statusEl.hidden = true;
   viewAv.hidden = true;
   titleEl.textContent = "Select an interview";
@@ -212,7 +259,7 @@ const linkResult = document.getElementById("link-result");
 const linkInput = document.getElementById("link-input");
 const copyBtn = document.getElementById("copy-btn");
 
-for (const zoneId of ["jd-drop", "docs-drop"]) {
+for (const zoneId of ["jd-drop", "resume-drop", "docs-drop"]) {
   const zone = document.getElementById(zoneId);
   const input = zone.querySelector("input");
   const label = zone.querySelector("span");
@@ -250,6 +297,7 @@ function fillReview() {
   const duration = fd.get("duration_min") || "20";
   const jdText = (fd.get("jd_text") || "").trim();
   const jdFile = newForm.jd_file.files[0];
+  const resumeFile = newForm.resume_file.files[0];
   const docs = newForm.docs.files;
 
   const engine = fd.get("provider") === "realtime" ? "Realtime mini" : "Our pipeline";
@@ -263,17 +311,44 @@ function fillReview() {
   else if (jdText) { jdEl.textContent = jdText.slice(0, 40) + (jdText.length > 40 ? "…" : ""); jdEl.classList.remove("muted"); }
   else { jdEl.textContent = "None provided"; jdEl.classList.add("muted"); }
 
+  const resumeEl = document.getElementById("rv-resume");
+  if (resumeFile) { resumeEl.textContent = resumeFile.name; resumeEl.classList.remove("muted"); }
+  else { resumeEl.textContent = "None provided"; resumeEl.classList.add("muted"); }
+
+  const topics = (fd.get("topics") || "").trim();
+  const topicsEl = document.getElementById("rv-topics");
+  if (topics) { topicsEl.textContent = topics; topicsEl.classList.remove("muted"); }
+  else { topicsEl.textContent = "Open (derived from JD)"; topicsEl.classList.add("muted"); }
+
   const docsEl = document.getElementById("rv-docs");
   if (docs.length) { docsEl.textContent = `${docs.length} file${docs.length > 1 ? "s" : ""}`; docsEl.classList.remove("muted"); }
   else { docsEl.textContent = "None"; docsEl.classList.add("muted"); }
 }
 
-document.getElementById("m-to-1").onclick = () => goToModalStep(1);
+document.getElementById("m-to-1").onclick = () => {
+  if (!newForm.role.value.trim()) {
+    newForm.role.reportValidity();
+    return;
+  }
+  goToModalStep(1);
+};
 document.getElementById("m-back-0").onclick = () => goToModalStep(0, "back");
-document.getElementById("m-to-2").onclick = () => goToModalStep(2);
+document.getElementById("m-to-2").onclick = () => {
+  const hasJd = newForm.jd_text.value.trim() || newForm.jd_file.files.length;
+  if (!hasJd) {
+    showToast("A job description is required — paste text or attach a file");
+    return;
+  }
+  goToModalStep(2);
+};
 document.getElementById("m-back-1").onclick = () => goToModalStep(1, "back");
-document.getElementById("m-to-3").onclick = () => goToModalStep(3);
-document.getElementById("m-skip-2").onclick = () => goToModalStep(3);
+document.getElementById("m-to-3").onclick = () => {
+  if (!newForm.resume_file.files.length) {
+    showToast("A candidate resume is required");
+    return;
+  }
+  goToModalStep(3);
+};
 document.getElementById("m-back-2").onclick = () => goToModalStep(2, "back");
 
 function openModal() {
@@ -326,6 +401,59 @@ copyBtn.onclick = async () => {
   copyBtn.classList.add("copied");
 };
 
+// ---------- interview details panel ----------
+const detailScrim = document.getElementById("detail-scrim");
+const fmtDuration = (seconds) => {
+  const mins = Math.round(seconds / 60);
+  if (mins < 1) return `${Math.max(1, Math.round(seconds))}s`;
+  return `${mins} min`;
+};
+
+titleBtn.onclick = () => {
+  const d = currentDetail;
+  if (!d) return;
+  document.getElementById("dt-role").textContent = d.role;
+  document.getElementById("dt-jobid").textContent = d.job_id || d.id;
+  document.getElementById("dt-sessionid").textContent = d.id;
+  document.getElementById("dt-status").textContent = d.status;
+  document.getElementById("dt-engine").textContent = d.provider === "realtime" ? "Realtime mini" : "Our pipeline";
+  document.getElementById("dt-created").textContent = fmtTime(d.created_at);
+  document.getElementById("dt-planned").textContent = `${d.duration_min} min`;
+
+  const endTs = d.ended_at || (d.messages.length ? d.messages[d.messages.length - 1].ts : null);
+  const actualEl = document.getElementById("dt-actual");
+  if (endTs) { actualEl.textContent = fmtDuration(endTs - d.created_at); actualEl.classList.remove("muted"); }
+  else { actualEl.textContent = d.status === "live" ? "In progress" : "—"; actualEl.classList.add("muted"); }
+
+  document.getElementById("dt-turns").textContent = d.messages.length;
+  document.getElementById("dt-topics").textContent = d.topics && d.topics.trim() ? d.topics : "Account default";
+
+  const costHeading = document.getElementById("dt-cost-heading");
+  const costList = document.getElementById("dt-cost-list");
+  if (d.cost) {
+    costHeading.hidden = false;
+    costList.hidden = false;
+    const fmtUsd = v => `$${v.toFixed(v < 0.01 ? 4 : 3)}`;
+    document.getElementById("dt-cost-llm").textContent =
+      `${fmtUsd(d.cost.llm_cost)} (${d.cost.llm_prompt_tokens + d.cost.llm_completion_tokens} tok)`;
+    document.getElementById("dt-cost-stt").textContent =
+      `${fmtUsd(d.cost.stt_cost)} (${d.cost.stt_seconds}s)`;
+    document.getElementById("dt-cost-tts").textContent =
+      `${fmtUsd(d.cost.tts_cost)} (${d.cost.tts_seconds}s)`;
+    document.getElementById("dt-cost-total").textContent = fmtUsd(d.cost.total_cost);
+  } else {
+    costHeading.hidden = true;
+    costList.hidden = true;
+  }
+
+  const jdEl = document.getElementById("dt-jd");
+  jdEl.textContent = d.jd_text && d.jd_text.trim() ? d.jd_text : "No job description was provided for this interview.";
+
+  detailScrim.hidden = false;
+};
+document.getElementById("detail-close").onclick = () => { detailScrim.hidden = true; };
+detailScrim.addEventListener("click", (e) => { if (e.target === detailScrim) detailScrim.hidden = true; });
+
 // ---------- user chip (topnav) ----------
 async function loadMe() {
   const resp = await fetch("/api/auth/me");
@@ -341,6 +469,55 @@ async function loadMe() {
 document.getElementById("logout-btn").addEventListener("click", async () => {
   await fetch("/api/auth/logout", { method: "POST" });
   window.location.href = "/login";
+});
+
+// ---------- change password ----------
+const pwScrim = document.getElementById("pw-scrim");
+const pwForm = document.getElementById("pw-form");
+const pwErr = document.getElementById("pw-err");
+const pwSuccess = document.getElementById("pw-success");
+const pwSubmit = document.getElementById("pw-submit");
+
+document.getElementById("change-pw-btn").addEventListener("click", () => {
+  pwForm.reset();
+  pwForm.hidden = false;
+  pwErr.hidden = true;
+  pwSuccess.hidden = true;
+  pwScrim.hidden = false;
+});
+document.getElementById("pw-cancel").addEventListener("click", () => { pwScrim.hidden = true; });
+pwScrim.addEventListener("click", (e) => { if (e.target === pwScrim) pwScrim.hidden = true; });
+
+pwForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  pwErr.hidden = true;
+  const fd = new FormData(pwForm);
+  const newPassword = fd.get("new_password");
+  if (newPassword !== fd.get("confirm_password")) {
+    pwErr.textContent = "New password and confirmation don't match.";
+    pwErr.hidden = false;
+    return;
+  }
+  pwSubmit.disabled = true;
+  pwSubmit.textContent = "Updating…";
+  try {
+    const resp = await fetch("/api/auth/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current_password: fd.get("current_password"), new_password: newPassword }),
+    });
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      pwErr.textContent = body.detail || "Could not update your password.";
+      pwErr.hidden = false;
+      return;
+    }
+    pwForm.hidden = true;
+    pwSuccess.hidden = false;
+  } finally {
+    pwSubmit.disabled = false;
+    pwSubmit.textContent = "Update password";
+  }
 });
 
 loadMe();

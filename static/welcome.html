@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 <title>InterviewOS — Home</title>
-<link rel="stylesheet" href="/static/theme.css?v=16">
+<link rel="stylesheet" href="/static/theme.css?v=26">
 <style>
   main { display: flex; flex-direction: column; align-items: center; padding: clamp(28px, 6vh, 64px) 20px 80px; gap: 34px; }
   .hero { text-align: center; max-width: 640px; }
@@ -25,14 +25,6 @@
     background: linear-gradient(165deg, #ffb84d, var(--orange-deep));
     box-shadow: 0 10px 30px rgba(201, 52, 0, .3);
   }
-  .account-row {
-    width: 100%; max-width: 960px;
-    display: flex; align-items: center; justify-content: space-between; gap: 16px;
-    background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-1);
-    padding: 16px 20px;
-  }
-  .account-row .k { font-size: .84rem; color: var(--text-2); }
-  .account-row .k b { color: var(--text); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -58,9 +50,22 @@
     </nav>
     <div class="spacer"></div>
     <div class="user-chip" id="user-chip" hidden>
-      <span class="av" id="chip-av"></span>
-      <span class="name" id="chip-name"></span>
-      <button class="logout" id="logout-btn" type="button">Log out</button>
+      <button class="chip-trigger" id="chip-trigger" type="button" aria-haspopup="true" aria-expanded="false">
+        <span class="av" id="chip-av"></span>
+        <span class="name" id="chip-name"></span>
+        <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="user-menu" id="user-menu" role="menu">
+        <button type="button" id="change-pw-btn" role="menuitem">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          Change password
+        </button>
+        <hr>
+        <button type="button" class="danger" id="logout-btn" role="menuitem">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          Log out
+        </button>
+      </div>
     </div>
   </header>
 
@@ -108,11 +113,6 @@
         </span>
       </a>
     </div>
-
-    <div class="account-row">
-      <span class="k">Signed in as <b id="acct-name">—</b></span>
-      <button class="btn-secondary" id="change-pw-btn" type="button">Change password</button>
-    </div>
   </main>
 
   <div class="modal-scrim" id="pw-scrim" hidden>
@@ -143,7 +143,7 @@
 
   <div id="toast-stack" aria-live="polite"></div>
 
-  <script src="/static/welcome.js?v=4"></script>
-  <script src="/static/fx.js?v=6"></script>
+  <script src="/static/welcome.js?v=5"></script>
+  <script src="/static/fx.js?v=11"></script>
 </body>
 </html>

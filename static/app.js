@@ -23,7 +23,7 @@ function confirmLeave(e) {
 navLinks.forEach(a => a.addEventListener("click", confirmLeave));
 
 // ---------- file input labels ----------
-for (const zoneId of ["jd-drop", "docs-drop"]) {
+for (const zoneId of ["jd-drop", "resume-drop", "docs-drop"]) {
   const zone = document.getElementById(zoneId);
   const input = zone.querySelector("input");
   const label = zone.querySelector("span");
@@ -44,16 +44,27 @@ for (const zoneId of ["jd-drop", "docs-drop"]) {
 }
 
 async function createSession() {
+  if (!setupForm.jd_text.value.trim() && !setupForm.jd_file.files[0]) {
+    throw new Error("A job description is required — paste text or attach a file");
+  }
+  if (!setupForm.resume_file.files[0]) {
+    throw new Error("A candidate resume is required");
+  }
   const fd = new FormData();
   fd.append("role", setupForm.role.value);
   fd.append("jd_text", setupForm.jd_text.value);
   fd.append("duration_min", setupForm.duration_min.value || "20");
   fd.append("provider", setupForm.provider.value || "pipeline");
+  fd.append("topics", setupForm.topics.value || "");
   if (setupForm.jd_file.files[0]) fd.append("jd_file", setupForm.jd_file.files[0]);
+  fd.append("resume_file", setupForm.resume_file.files[0]);
   for (const f of setupForm.docs.files) fd.append("docs", f);
   const resp = await fetch("/api/session", { method: "POST", body: fd });
   if (resp.status === 401) { window.location.href = "/login"; throw new Error("not authenticated"); }
-  if (!resp.ok) throw new Error(`setup failed: ${resp.status}`);
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    throw new Error(body.detail || `setup failed: ${resp.status}`);
+  }
   return (await resp.json()).session_id;
 }
 
@@ -85,6 +96,55 @@ function initials(name) {
 document.getElementById("logout-btn").addEventListener("click", async () => {
   await fetch("/api/auth/logout", { method: "POST" });
   window.location.href = "/login";
+});
+
+// ---------- change password ----------
+const pwScrim = document.getElementById("pw-scrim");
+const pwForm = document.getElementById("pw-form");
+const pwErr = document.getElementById("pw-err");
+const pwSuccess = document.getElementById("pw-success");
+const pwSubmit = document.getElementById("pw-submit");
+
+document.getElementById("change-pw-btn").addEventListener("click", () => {
+  pwForm.reset();
+  pwForm.hidden = false;
+  pwErr.hidden = true;
+  pwSuccess.hidden = true;
+  pwScrim.hidden = false;
+});
+document.getElementById("pw-cancel").addEventListener("click", () => { pwScrim.hidden = true; });
+pwScrim.addEventListener("click", (e) => { if (e.target === pwScrim) pwScrim.hidden = true; });
+
+pwForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  pwErr.hidden = true;
+  const fd = new FormData(pwForm);
+  const newPassword = fd.get("new_password");
+  if (newPassword !== fd.get("confirm_password")) {
+    pwErr.textContent = "New password and confirmation don't match.";
+    pwErr.hidden = false;
+    return;
+  }
+  pwSubmit.disabled = true;
+  pwSubmit.textContent = "Updating…";
+  try {
+    const resp = await fetch("/api/auth/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current_password: fd.get("current_password"), new_password: newPassword }),
+    });
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      pwErr.textContent = body.detail || "Could not update your password.";
+      pwErr.hidden = false;
+      return;
+    }
+    pwForm.hidden = true;
+    pwSuccess.hidden = false;
+  } finally {
+    pwSubmit.disabled = false;
+    pwSubmit.textContent = "Update password";
+  }
 });
 
 function showDone({ title, sub }) {

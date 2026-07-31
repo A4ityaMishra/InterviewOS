@@ -33,7 +33,6 @@ async function loadMe() {
   greeting.textContent = `Welcome back, ${user.name}`;
   if (window.fxWordReveal) window.fxWordReveal(greeting);
   document.getElementById("chip-name").textContent = user.name;
-  document.getElementById("acct-name").textContent = user.name;
   const av = document.getElementById("chip-av");
   av.textContent = initials(user.name);
   av.style = avStyle(user.name);

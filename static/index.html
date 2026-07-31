@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 <title>InterviewOS — Interview Room</title>
-<link rel="stylesheet" href="/static/theme.css?v=16">
+<link rel="stylesheet" href="/static/theme.css?v=26">
 <link rel="stylesheet" href="/static/call.css?v=2">
 <style>
   main { display: flex; flex-direction: column; align-items: center; padding: clamp(28px, 6vh, 64px) 20px 80px; }
@@ -41,9 +41,9 @@
     border-radius: var(--radius-sm);
     padding: 14px 16px; cursor: pointer; color: var(--text-2); font-size: .9rem;
     background: var(--fill);
-    transition: background .2s var(--ease);
+    transition: background .2s var(--ease), transform .18s var(--ease), box-shadow .18s var(--ease);
   }
-  .dropzone:hover, .dropzone.drag { background: var(--blue-soft); }
+  .dropzone:hover, .dropzone.drag { background: var(--blue-soft); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0, 113, 227, .16); }
   .dropzone svg { flex: none; color: var(--blue); }
   .dropzone input { display: none; }
   .dropzone .files { color: var(--text); font-weight: 600; }
@@ -84,9 +84,22 @@
     </nav>
     <div class="spacer"></div>
     <div class="user-chip" id="user-chip" hidden>
-      <span class="av" id="chip-av"></span>
-      <span class="name" id="chip-name"></span>
-      <button class="logout" id="logout-btn" type="button">Log out</button>
+      <button class="chip-trigger" id="chip-trigger" type="button" aria-haspopup="true" aria-expanded="false">
+        <span class="av" id="chip-av"></span>
+        <span class="name" id="chip-name"></span>
+        <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="user-menu" id="user-menu" role="menu">
+        <button type="button" id="change-pw-btn" role="menuitem">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          Change password
+        </button>
+        <hr>
+        <button type="button" class="danger" id="logout-btn" role="menuitem">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          Log out
+        </button>
+      </div>
     </div>
   </header>
 
@@ -100,7 +113,7 @@
       <form id="setup">
         <div class="row">
           <label class="field">Role title
-            <input type="text" name="role" placeholder="e.g. Backend Software Engineer" autocomplete="off">
+            <input type="text" name="role" placeholder="e.g. Backend Software Engineer" autocomplete="off" required>
           </label>
           <label class="field">Duration
             <div class="input-suffix">
@@ -118,17 +131,25 @@
             <label for="eng-realtime"><b>Realtime mini</b><small>Single voice model, lower latency</small></label>
           </div>
         </div>
-        <label class="field">Job description
+        <label class="field">Job description (required)
           <textarea name="jd_text" rows="5" placeholder="Paste the JD here, or attach a file below"></textarea>
         </label>
         <label class="dropzone" id="jd-drop">
           <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
-          <span data-empty="Attach JD file — PDF, DOCX or TXT">Attach JD file — PDF, DOCX or TXT</span>
+          <span data-empty="Attach JD file — PDF, DOCX or TXT (required unless pasted above)">Attach JD file — PDF, DOCX or TXT (required unless pasted above)</span>
           <input type="file" name="jd_file" accept=".pdf,.docx,.txt,.md">
+        </label>
+        <label class="dropzone" id="resume-drop">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/><path d="M8 13h8M8 17h5"/></svg>
+          <span data-empty="Attach resume — PDF, DOCX or TXT (required)">Attach resume — PDF, DOCX or TXT (required)</span>
+          <input type="file" name="resume_file" accept=".pdf,.docx,.txt,.md">
+        </label>
+        <label class="field">Topics to specifically ask about (optional)
+          <textarea name="topics" rows="2" placeholder="Comma-separated. Leave blank and the interviewer will derive topics entirely from the JD instead."></textarea>
         </label>
         <label class="dropzone" id="docs-drop">
           <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/><path d="M8 13h8M8 17h5"/></svg>
-          <span data-empty="Supporting docs — resume, notes (optional)">Supporting docs — resume, notes (optional)</span>
+          <span data-empty="Additional documents — team notes, rubric (optional)">Additional documents — team notes, rubric (optional)</span>
           <input type="file" name="docs" accept=".pdf,.docx,.txt,.md" multiple>
         </label>
         <button id="start" type="submit" class="btn-primary">Start interview</button>
@@ -204,8 +225,34 @@
     </section>
   </main>
 
+  <div class="modal-scrim" id="pw-scrim" hidden>
+    <div class="modal">
+      <form id="pw-form">
+        <h3>Change password</h3>
+        <div class="sub">Choose a new password for your own account.</div>
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <label class="field">Current password
+            <input type="password" name="current_password" autocomplete="current-password" required>
+          </label>
+          <label class="field">New password
+            <input type="password" name="new_password" autocomplete="new-password" minlength="8" required>
+          </label>
+          <label class="field">Confirm new password
+            <input type="password" name="confirm_password" autocomplete="new-password" minlength="8" required>
+          </label>
+        </div>
+        <div class="err" id="pw-err" role="alert" hidden style="color:var(--red-deep); font-size:.86rem; margin-top:14px;"></div>
+        <div class="err" id="pw-success" role="status" hidden style="color:var(--green-deep); font-size:.86rem; margin-top:14px;">Password updated.</div>
+        <div class="actions">
+          <button type="button" class="btn-secondary" id="pw-cancel">Cancel</button>
+          <button type="submit" class="btn-primary" id="pw-submit">Update password</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script src="/static/call.js?v=2"></script>
-  <script src="/static/app.js?v=8"></script>
-  <script src="/static/fx.js?v=6"></script>
+  <script src="/static/app.js?v=9"></script>
+  <script src="/static/fx.js?v=11"></script>
 </body>
 </html>

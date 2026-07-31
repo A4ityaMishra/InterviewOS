@@ -10,6 +10,39 @@
 
   if (fineCursor) document.body.classList.add("fx-cursor");
 
+  // ---------- account dropdown (topnav user chip) ----------
+  // Functional chrome, not decorative — works regardless of motion/pointer
+  // preferences. Markup: #user-chip > #chip-trigger + .user-menu.
+  const userChip = document.getElementById("user-chip");
+  const chipTrigger = document.getElementById("chip-trigger");
+  const userMenu = document.getElementById("user-menu");
+  if (userChip && chipTrigger && userMenu) {
+    // Position via real viewport coordinates (fixed) rather than
+    // `position: absolute` off a CSS-positioned ancestor — the sticky,
+    // backdrop-filtered topnav made that anchor to the wrong box.
+    function positionMenu() {
+      const r = chipTrigger.getBoundingClientRect();
+      userMenu.style.top = `${r.bottom + 10}px`;
+      userMenu.style.left = `${r.right - userMenu.offsetWidth}px`;
+    }
+    chipTrigger.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const opening = !userChip.classList.contains("open");
+      if (opening) positionMenu();
+      userChip.classList.toggle("open", opening);
+      chipTrigger.setAttribute("aria-expanded", opening ? "true" : "false");
+    });
+    document.addEventListener("click", (e) => {
+      if (!userChip.contains(e.target)) userChip.classList.remove("open");
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") userChip.classList.remove("open");
+    });
+    window.addEventListener("resize", () => {
+      if (userChip.classList.contains("open")) positionMenu();
+    });
+  }
+
   // ---------- masked word-reveal helper (called explicitly by page scripts
   // once text is final, to avoid racing async content like the welcome
   // greeting) ----------
@@ -120,7 +153,10 @@
       const setPaused = () => {
         paused = !callEl.hidden;
         canvas.style.opacity = paused ? "0" : "1";
-        document.querySelectorAll(".hud, #cursor-dot").forEach((el) => {
+        // #cursor-dot stays visible during the call — it's the only cursor
+        // rendered (theme.css hides the native one via `cursor: none`), so
+        // hiding it here left the call screen with no cursor at all.
+        document.querySelectorAll(".hud").forEach((el) => {
           el.style.display = paused ? "none" : "";
         });
       };
@@ -185,33 +221,55 @@
 
   if (reduceMotion) return; // skip tilt + magnetic pull
 
-  // ---------- card tilt toward cursor (only where one hero card exists) ----------
-  const card = document.querySelector(".card");
-  if (card) {
-    card.style.transformStyle = "preserve-3d";
-    card.addEventListener("mousemove", (e) => {
-      const rect = card.getBoundingClientRect();
-      const px = (e.clientX - rect.left) / rect.width - 0.5;
-      const py = (e.clientY - rect.top) / rect.height - 0.5;
-      card.style.transform = `perspective(900px) rotateY(${px * 4}deg) rotateX(${-py * 4}deg)`;
-    });
-    card.addEventListener("mouseleave", () => {
-      card.style.transform = "perspective(900px) rotateY(0) rotateX(0)";
-    });
+  // ---------- tilt toward cursor, on every card/tile ----------
+  // Delegated on document (not bound per-element) so it still works on rows
+  // rendered later by ops.js/team.js after an async fetch — those elements
+  // don't exist yet when this script runs, so direct per-element binding
+  // would silently miss them. Bigger elements get a smaller max angle so it
+  // reads as a subtle tilt rather than a wobble.
+  const TILT_CONFIG = [
+    { sel: ".card", max: 4 },
+    { sel: ".nav-card", max: 5 },
+    { sel: ".stats, .item, .row", max: 3 },
+  ];
+  function tiltFor(el) {
+    for (const cfg of TILT_CONFIG) {
+      if (el.matches(cfg.sel)) return cfg.max;
+    }
+    return null;
   }
+  document.addEventListener("mousemove", (e) => {
+    const el = e.target.closest && e.target.closest(TILT_CONFIG.map((c) => c.sel).join(", "));
+    if (!el) return;
+    const max = tiltFor(el);
+    const rect = el.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width - 0.5;
+    const py = (e.clientY - rect.top) / rect.height - 0.5;
+    el.style.transform = `perspective(900px) rotateY(${px * max}deg) rotateX(${-py * max}deg)`;
+  });
+  document.addEventListener("mouseout", (e) => {
+    const el = e.target.closest && e.target.closest(TILT_CONFIG.map((c) => c.sel).join(", "));
+    if (el && (!e.relatedTarget || !el.contains(e.relatedTarget))) {
+      el.style.transform = "perspective(900px) rotateY(0) rotateX(0)";
+    }
+  });
 
-  // ---------- magnetic pull on every primary button on the page ----------
-  document.querySelectorAll(".btn-primary, .new-btn").forEach((btn) => {
-    btn.addEventListener("mousemove", (e) => {
-      const rect = btn.getBoundingClientRect();
-      const mx = e.clientX - (rect.left + rect.width / 2);
-      const my = e.clientY - (rect.top + rect.height / 2);
-      btn.style.setProperty("--mx", `${mx * 0.18}px`);
-      btn.style.setProperty("--my", `${my * 0.35}px`);
-    });
-    btn.addEventListener("mouseleave", () => {
-      btn.style.setProperty("--mx", "0px");
-      btn.style.setProperty("--my", "0px");
-    });
+  // ---------- magnetic pull on buttons ----------
+  document.addEventListener("mousemove", (e) => {
+    const el = e.target.closest && e.target.closest(".btn-primary, .new-btn");
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const mx = e.clientX - (rect.left + rect.width / 2);
+    const my = e.clientY - (rect.top + rect.height / 2);
+    const clamp = (v, maxPx) => Math.max(-maxPx, Math.min(maxPx, v));
+    el.style.setProperty("--mx", `${clamp(mx * 0.18, 14)}px`);
+    el.style.setProperty("--my", `${clamp(my * 0.35, 14)}px`);
+  });
+  document.addEventListener("mouseout", (e) => {
+    const el = e.target.closest && e.target.closest(".btn-primary, .new-btn");
+    if (el && (!e.relatedTarget || !el.contains(e.relatedTarget))) {
+      el.style.setProperty("--mx", "0px");
+      el.style.setProperty("--my", "0px");
+    }
   });
 })();

@@ -30,18 +30,13 @@ REALTIME_VOICE = os.getenv("REALTIME_VOICE", "alloy")
 
 AGENT_NAME = os.getenv("AGENT_NAME", "Sarah")
 
-INTERVIEW_ROLE = os.getenv("INTERVIEW_ROLE", "Backend Software Engineer")
-INTERVIEW_TOPICS = os.getenv(
-    "INTERVIEW_TOPICS",
-    "REST API design, databases and indexing, caching, system design basics",
-)
 INTERVIEW_DURATION_MIN = int(os.getenv("INTERVIEW_DURATION_MIN", "20"))
 
 # Audio: client sends 16 kHz mono 16-bit PCM
 SAMPLE_RATE = 16000
 VAD_FRAME_MS = 30
 VAD_AGGRESSIVENESS = 3  # strictest: fewest false "speech" detections
-ENDPOINT_SILENCE_MS = int(os.getenv("ENDPOINT_SILENCE_MS", "650"))
+ENDPOINT_SILENCE_MS = int(os.getenv("ENDPOINT_SILENCE_MS", "1600"))
 MIN_SPEECH_MS = 250  # ignore blips shorter than this
 # minimum frame RMS (int16 scale) to count as speech; raise if barge-in
 # still triggers on background noise, lower for very quiet mics
@@ -56,6 +51,35 @@ HARD_TIMEOUT_GRACE_MIN = int(os.getenv("HARD_TIMEOUT_GRACE_MIN", "10"))
 # How long to wait for the model to produce the next chunk before treating the
 # response as hung and falling back to an error state.
 LLM_RESPONSE_TIMEOUT_S = int(os.getenv("LLM_RESPONSE_TIMEOUT_S", "45"))
+
+# ---------- Cost estimation (ops dashboard only) ----------
+# USD list pricing, used to estimate per-interview spend. These are public
+# rate-card numbers, not pulled from a billing API — treat the ops "est.
+# cost" figure as an estimate, since real accounts can have negotiated or
+# tiered pricing that differs from the public rate card.
+#
+# LLM token counts are exact (read straight off the API response), so only
+# their $ conversion here is approximate. STT/TTS $ is a bigger unknown:
+# none of these providers expose a per-request credits/cost field over their
+# streaming APIs, only a dashboard-level running total, so STT_PRICE_PER_MIN
+# / TTS_PRICE_PER_MIN below can't be cross-checked per session — only by
+# periodically comparing our summed estimate against the provider dashboard
+# total (e.g. Smallest.ai's usage page) over some date range and nudging
+# these constants to match if they've drifted.
+LLM_PRICE_PER_1M_TOKENS = {  # model -> (input $/1M tok, output $/1M tok)
+    "gpt-4o-mini": (0.15, 0.60),
+    "deepseek-chat": (0.14, 0.28),
+}
+STT_PRICE_PER_MIN = {  # speech provider -> $/minute of audio transcribed
+    "smallest": 0.009,
+    "sarvam": 0.006,
+    "elevenlabs": 0.02,
+}
+TTS_PRICE_PER_MIN = {  # speech provider -> $/minute of audio synthesized
+    "smallest": 0.09,
+    "sarvam": 0.02,
+    "elevenlabs": 0.13,
+}
 
 # ---------- Auth / sessions ----------
 SESSION_SECRET = os.getenv("SESSION_SECRET", "dev-insecure-secret-change-me")

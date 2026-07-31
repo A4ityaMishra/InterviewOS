@@ -11,9 +11,12 @@ Client sends binary 16 kHz mono 16-bit PCM frames. Server sends JSON:
 
 import asyncio
 import base64
+import hashlib
+import io
 import logging
 import time
 import uuid
+import wave
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, RedirectResponse
@@ -21,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import accounts, auth, config, documents, speech, store
+from . import accounts, auth, config, costs, documents, speech, store
 from .agent import InterviewSession, build_system_prompt
 from .speech import StreamingSTT
 from .vad import UtteranceDetector
@@ -43,6 +46,11 @@ app.add_middleware(
 accounts.seed_admin_if_empty(
     config.ADMIN_USERNAME, config.ADMIN_PASSWORD, config.ADMIN_TEAM, config.ADMIN_NAME
 )
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 
 @app.get("/")
@@ -194,6 +202,11 @@ async def interview_public_info(session_id: str):
     return {"role": rec["role"], "duration_min": rec["duration_min"], "status": rec["status"]}
 
 
+def _wav_duration_s(wav: bytes) -> float:
+    with wave.open(io.BytesIO(wav), "rb") as w:
+        return w.getnframes() / float(w.getframerate())
+
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # session_id -> {"prompt", "duration_min"} for pending websocket connects.
@@ -209,7 +222,14 @@ async def ops_sessions(user: dict = Depends(auth.require_user)):
 @app.get("/api/ops/sessions/{session_id}")
 async def ops_session(session_id: str, user: dict = Depends(auth.require_user)):
     rec = store.get(session_id)
-    return rec if rec is not None else {"error": "not found"}
+    if rec is None:
+        return {"error": "not found"}
+    if rec.get("provider") != "realtime":
+        # realtime sessions bill through OpenAI's Realtime API, not the
+        # pipeline STT/LLM/TTS calls this estimate is built from
+        llm_model = config.DEEPSEEK_MODEL if config.LLM_PROVIDER == "deepseek" else config.OPENAI_MODEL
+        rec = {**rec, "cost": costs.estimate(rec.get("usage", {}), llm_model, speech.ACTIVE_PROVIDER)}
+    return rec
 
 
 @app.post("/api/session")
@@ -218,33 +238,51 @@ async def create_session(
     role: str = Form(""),
     duration_min: int = Form(0),
     jd_text: str = Form(""),
+    topics: str = Form(""),
     provider: str = Form("pipeline"),
     jd_file: UploadFile | None = None,
+    resume_file: UploadFile | None = None,
     docs: list[UploadFile] = [],
 ):
-    """Create an interview session from a JD (file or pasted text) plus
-    optional supporting documents. Returns a session id for /ws."""
+    """Create an interview session from a role, JD, and resume (all mandatory)
+    plus optional extra documents and an optional topics override. Returns a
+    session id for /ws. There is no generic single-role fallback — that used
+    to silently produce interviews whose topics didn't match the JD."""
     if jd_file is not None and jd_file.filename:
         jd_text = documents.extract_text(jd_file.filename, await jd_file.read())
-    extra = []
+    if not role.strip():
+        raise HTTPException(status_code=400, detail="Role is required")
+    if not jd_text.strip():
+        raise HTTPException(status_code=400, detail="A job description is required")
+    if resume_file is None or not resume_file.filename:
+        raise HTTPException(status_code=400, detail="A candidate resume is required")
+    resume_text = documents.extract_text(resume_file.filename, await resume_file.read())
+    extra = [(resume_file.filename, resume_text)]
     for f in docs:
         extra.append((f.filename, documents.extract_text(f.filename, await f.read())))
 
     duration = duration_min or config.INTERVIEW_DURATION_MIN
-    resolved_role = role or config.INTERVIEW_ROLE
+    resolved_role = role.strip()
     resolved_provider = provider if provider in ("pipeline", "realtime") else "pipeline"
+    resolved_topics = topics.strip()
     prompt = build_system_prompt(
         role=resolved_role,
         duration_min=duration,
         jd_text=jd_text.strip(),
         extra_docs=extra,
-        topics=config.INTERVIEW_TOPICS,
+        topics=resolved_topics,
     )
     session_id = uuid.uuid4().hex
+    # Same JD text (whitespace differences aside) -> same job_id, so reposting
+    # the same job description for multiple candidates groups their sessions
+    # together in the ops dashboard. No JD text -> job_id is just this
+    # session's own id (nothing to group it with).
+    jd_normalized = " ".join(jd_text.split())
+    job_id = hashlib.sha256(jd_normalized.encode("utf-8")).hexdigest()[:12] if jd_normalized else session_id
     _sessions[session_id] = {
         "prompt": prompt,
         "duration_min": duration,
-        "topics": config.INTERVIEW_TOPICS,
+        "topics": resolved_topics,
         "provider": resolved_provider,
     }
     store.create(
@@ -252,6 +290,9 @@ async def create_session(
         role=resolved_role,
         duration_min=duration,
         jd_present=bool(jd_text.strip()),
+        job_id=job_id,
+        jd_text=jd_text.strip(),
+        topics=resolved_topics,
         provider=resolved_provider,
     )
     return {"session_id": session_id}
@@ -274,6 +315,9 @@ class CallHandler:
         # unanswered candidate speech; accumulates when the endpoint fires
         # mid-thought and they keep talking before the agent has replied
         self.pending_text = ""
+        # running totals for the ops-side cost estimate (server/costs.py)
+        self._stt_seconds = 0.0
+        self._tts_seconds = 0.0
 
     async def send(self, **payload):
         await self.ws.send_json(payload)
@@ -319,6 +363,8 @@ class CallHandler:
 
                 sentence = payload
                 wav = await tts_task
+                self._tts_seconds += _wav_duration_s(wav)
+                store.set_usage(self.session_id, tts_seconds=self._tts_seconds)
                 if first:
                     log.info("latency: to-first-audio %.2fs", time.monotonic() - t0)
                     await self.send(type="status", state="speaking")
@@ -367,6 +413,11 @@ class CallHandler:
         if text:
             store.append_message(self.session_id, "agent", text, interrupted=interrupted)
             self.spoken_so_far = ""
+        store.set_usage(
+            self.session_id,
+            llm_prompt_tokens=self.session.usage["prompt_tokens"],
+            llm_completion_tokens=self.session.usage["completion_tokens"],
+        )
 
     def interrupt(self):
         if self.speak_task and not self.speak_task.done():
@@ -394,6 +445,8 @@ class CallHandler:
         if not text:
             await self.send(type="status", state="listening")
             return
+        self._stt_seconds += len(pcm) / 32000  # 16kHz, 16-bit mono PCM
+        store.set_usage(self.session_id, stt_seconds=self._stt_seconds)
         log.info("candidate: %s", text)
         store.append_message(self.session_id, "candidate", text)
         await self.send(type="transcript", text=text)
@@ -472,13 +525,12 @@ class CallHandler:
 
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket, session: str = ""):
+    # every session must originate from /api/session, which requires a role
+    # and a JD — no ad-hoc/anonymous session is created here, since that
+    # used to silently start generic, JD-less interviews.
     if session not in _sessions:
-        session = uuid.uuid4().hex
-        default_provider = "realtime" if config.LLM_PROVIDER == "realtime" else "pipeline"
-        _sessions[session] = {"provider": default_provider}
-        store.create(session, role=config.INTERVIEW_ROLE,
-                     duration_min=config.INTERVIEW_DURATION_MIN, jd_present=False,
-                     provider=default_provider)
+        await ws.close(code=4404, reason="Unknown session — create one via /api/session first")
+        return
 
     setup = _sessions.get(session) or {}
     # per-session choice made at creation time wins; falls back to the global

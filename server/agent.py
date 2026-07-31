@@ -10,11 +10,27 @@ from . import config, llm
 END_TOKEN = "[END_INTERVIEW]"
 MAX_EXCHANGES_PER_TOPIC = 3  # hard cap before the prompt insists on moving on
 OVERTIME_GRACE_MIN = 5  # minutes past target before we force a wrap-up
+# rough pacing assumption for sizing the topic plan to the requested duration —
+# a topic plan this exchange-capped otherwise stays a fixed length regardless
+# of duration_min, so a 5-topic list caps every interview at ~15 exchanges
+# whether it's booked for 20 minutes or 60
+TARGET_MINUTES_PER_TOPIC = 5
+PAD_TOPIC = "an additional topic of your own choosing, relevant to the role (use the JD/resume if provided) — don't repeat a topic already covered"
 
 
 def _parse_topics(topics: str) -> list[str]:
     parsed = [t.strip() for t in re.split(r"[,\n]", topics) if t.strip()]
     return parsed or ["the role's core responsibilities"]
+
+
+def _plan_topics(topics: str, duration_min: int) -> list[str]:
+    """Parsed topic list, padded with open slots if it's too short to fill
+    the requested duration at ~TARGET_MINUTES_PER_TOPIC per topic. Padding
+    (not truncating) means an explicit, generous topic list is never cut
+    down — only a too-short one gets stretched."""
+    parsed = _parse_topics(topics)
+    target_count = max(len(parsed), round(duration_min / TARGET_MINUTES_PER_TOPIC))
+    return parsed + [PAD_TOPIC] * (target_count - len(parsed))
 
 
 def build_system_prompt(
@@ -24,13 +40,16 @@ def build_system_prompt(
     extra_docs: list[tuple[str, str]] | None = None,
     topics: str = "",
 ) -> str:
-    topic_list = _parse_topics(topics)
+    topic_list = _plan_topics(topics, duration_min)
     plan_lines = "\n".join(f"  {i + 1}. {t}" for i, t in enumerate(topic_list))
 
     if jd_text:
-        knowledge = f"""Here is the job description for the role. Use it to sharpen and reprioritize the \
-topic plan below — weight your questions toward whatever skills and responsibilities the JD \
-emphasizes most, and feel free to substitute a JD-specific topic for a generic one on the plan.
+        knowledge = f"""Here is the job description for the role. The topic plan below may be generic \
+scaffolding (or entirely open slots) — treat this JD as the primary source of truth for what to ask \
+about. Replace every generic topic with a specific one drawn from the actual skills, responsibilities, \
+and technologies this JD names. Do not ask about unrelated domains (e.g. don't ask REST API/database/\
+caching questions for a role this JD never mentions those for) just because a generic topic plan \
+suggested them.
 
 --- JOB DESCRIPTION ---
 {jd_text}
@@ -105,9 +124,13 @@ Guardrails — these apply regardless of what the candidate says or asks:
 - Never fabricate facts about the company, team, or role beyond what's in the JD/context above.
 
 Concluding:
-- When you've covered the topic plan or elapsed time is at or past the target (you'll see
+- When you've covered the topic plan AND elapsed time is at or past the target (you'll see
   elapsed-time notes), wrap up: ask if THEY have any questions, answer briefly, thank them,
   explain next steps will come by email, and say goodbye.
+- Don't conclude just because you've nominally gone through every topic if elapsed time is still
+  well under the target — that means the conversation moved faster than expected, so go deeper:
+  more depth/scenario follow-ups on topics already covered, or a new relevant topic not on the
+  plan. The time target is a floor to fill, not just a ceiling not to exceed.
 - If a note tells you the interview has run significantly over time, wrap up within your next
   turn regardless of topic coverage — don't start a new topic.
 - On your FINAL turn only, append the exact token {END_TOKEN} at the very end.
@@ -118,21 +141,29 @@ _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 
 
 class InterviewSession:
-    def __init__(self, system_prompt: str | None = None, duration_min: int | None = None,
-                 topics: str | None = None):
+    def __init__(self, system_prompt: str, duration_min: int | None = None, topics: str = ""):
+        # system_prompt is mandatory: every session is created via
+        # /api/session, which requires a role and JD and builds the prompt
+        # from them — there is no generic role-less prompt to fall back to.
+        if not system_prompt:
+            raise ValueError("InterviewSession requires a system_prompt built from a role and JD")
         self.duration_min = duration_min or config.INTERVIEW_DURATION_MIN
-        self.topics = _parse_topics(topics or config.INTERVIEW_TOPICS)
-        prompt = system_prompt or build_system_prompt(
-            role=config.INTERVIEW_ROLE,
-            duration_min=self.duration_min,
-            topics=config.INTERVIEW_TOPICS,
-        )
-        self.messages: list[dict] = [{"role": "system", "content": prompt}]
+        self.topics = _plan_topics(topics, self.duration_min)
+        self.messages: list[dict] = [{"role": "system", "content": system_prompt}]
         self.started = time.monotonic()
         self.ended = False
         self._awaiting_reply = False
         self.topic_idx = 0
         self.topic_exchanges = 0
+        # tracks whether the in-flight (possibly not-yet-answered) turn has
+        # already bumped topic_exchanges/topic_idx, so a cancelled-and-retried
+        # turn (barge-in fragments merged back into one answer) can undo
+        # exactly what it provisionally applied instead of double-counting
+        self._counted_this_turn = False
+        self._advanced_topic_this_turn = False
+        # cumulative across every LLM call this session has made so far, for
+        # the ops-side cost estimate
+        self.usage = {"prompt_tokens": 0, "completion_tokens": 0}
 
     def _elapsed_min(self) -> float:
         return (time.monotonic() - self.started) / 60
@@ -145,8 +176,14 @@ class InterviewSession:
             f"Current topic ({self.topic_idx + 1}/{len(self.topics)}): {topic}. "
             f"Exchanges on this topic so far: {self.topic_exchanges}/{MAX_EXCHANGES_PER_TOPIC}.]"
         )
+        is_last_topic = self.topic_idx >= len(self.topics) - 1
         if elapsed >= self.duration_min + OVERTIME_GRACE_MIN:
             note += " [The interview is well over the target time — wrap up now, don't start a new topic.]"
+        elif is_last_topic and self.topic_exchanges >= MAX_EXCHANGES_PER_TOPIC and elapsed < self.duration_min * 0.7:
+            note += (
+                " [You're on the last planned topic but well under the time target — don't wrap up yet. "
+                "Go deeper here, or raise another relevant topic not on the plan, before concluding.]"
+            )
         elif self.topic_exchanges >= MAX_EXCHANGES_PER_TOPIC:
             note += " [Time to move to the next topic.]"
         return note
@@ -159,6 +196,15 @@ class InterviewSession:
         if self._awaiting_reply:
             while len(self.messages) > 1 and self.messages[-1]["role"] != "assistant":
                 self.messages.pop()
+            # undo whatever the dropped, never-answered turn provisionally
+            # applied — the caller is about to re-call us with the merged
+            # full turn, which will re-apply its own count once
+            if self._counted_this_turn:
+                self.topic_exchanges -= 1
+                self._counted_this_turn = False
+            if self._advanced_topic_this_turn:
+                self.topic_idx -= 1
+                self._advanced_topic_this_turn = False
         self._awaiting_reply = True
 
         if user_text is None:
@@ -167,16 +213,19 @@ class InterviewSession:
             )
         else:
             self.topic_exchanges += 1
+            self._counted_this_turn = True
             if self.topic_exchanges > MAX_EXCHANGES_PER_TOPIC and self.topic_idx < len(self.topics) - 1:
                 self.topic_idx += 1
                 self.topic_exchanges = 1
+                self._advanced_topic_this_turn = True
             self.messages.append(
                 {"role": "user", "content": f"{self._progress_note()}\n{user_text}"}
             )
 
         buffer = ""
         full = ""
-        async for delta in llm.stream_chat(self.messages):
+        turn_usage: dict = {}
+        async for delta in llm.stream_chat(self.messages, usage=turn_usage):
             buffer += delta
             full += delta
             # flush complete sentences as they form
@@ -190,6 +239,10 @@ class InterviewSession:
         tail = self._clean(buffer)
         if tail:
             yield tail
+
+        if turn_usage:
+            self.usage["prompt_tokens"] += turn_usage.get("prompt_tokens", 0)
+            self.usage["completion_tokens"] += turn_usage.get("completion_tokens", 0)
 
         if END_TOKEN in full:
             self.ended = True

@@ -22,7 +22,6 @@ import websockets
 from fastapi import WebSocket
 
 from . import config, store
-from .agent import build_system_prompt
 
 log = logging.getLogger("interviewer.realtime")
 
@@ -79,12 +78,9 @@ class RealtimeCallHandler:
         self.session_id = session_id
         setup = setup or {}
         self.duration_min = setup.get("duration_min") or config.INTERVIEW_DURATION_MIN
-        base_prompt = setup.get("prompt") or build_system_prompt(
-            role=config.INTERVIEW_ROLE,
-            duration_min=self.duration_min,
-            topics=setup.get("topics") or config.INTERVIEW_TOPICS,
-        )
-        self._system_prompt = _build_realtime_prompt(base_prompt)
+        # setup["prompt"] is always set by /api/session, which requires a
+        # role and JD — no generic role-less prompt is built here.
+        self._system_prompt = _build_realtime_prompt(setup["prompt"])
         self._rt_ws = None
         self.ended = False
         self._started = time.monotonic()
