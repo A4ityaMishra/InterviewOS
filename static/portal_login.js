@@ -42,6 +42,10 @@ passwordForm.addEventListener("submit", async (e) => {
       return;
     }
     await goToPortal(resp);
+  } catch (err) {
+    console.error("Login error:", err);
+    pwErrText.textContent = "Something went wrong. Please try again.";
+    pwErr.hidden = false;
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = "Sign in";
@@ -77,6 +81,10 @@ codeRequestForm.addEventListener("submit", async (e) => {
     codeSentMsg.textContent = `If ${pendingEmail} has an account, a 6-digit code was sent — check your inbox.`;
     codeRequestForm.hidden = true;
     codeVerifyForm.hidden = false;
+  } catch (err) {
+    console.error("Code request error:", err);
+    codeReqErrText.textContent = "Something went wrong. Please try again.";
+    codeReqErr.hidden = false;
   } finally {
     codeRequestBtn.disabled = false;
     codeRequestBtn.textContent = "Send code";
@@ -106,6 +114,10 @@ codeVerifyForm.addEventListener("submit", async (e) => {
       return;
     }
     await goToPortal(resp);
+  } catch (err) {
+    console.error("Code verify error:", err);
+    codeVerifyErrText.textContent = "Something went wrong. Please try again.";
+    codeVerifyErr.hidden = false;
   } finally {
     codeVerifyBtn.disabled = false;
     codeVerifyBtn.textContent = "Verify & sign in";

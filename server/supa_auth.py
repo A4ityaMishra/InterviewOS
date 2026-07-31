@@ -4,9 +4,13 @@ own Postgres tables. Two clients: a service-role client for admin operations
 password-grant sign-in a login form actually performs.
 """
 
+import logging
+
 from supabase import AsyncClient, create_async_client
 
 from . import config
+
+logger = logging.getLogger(__name__)
 
 _admin: AsyncClient | None = None
 _anon: AsyncClient | None = None
@@ -23,6 +27,7 @@ async def sign_in(email: str, password: str) -> dict | None:
     try:
         res = await _anon.auth.sign_in_with_password({"email": email, "password": password})
     except Exception:
+        logger.warning("Supabase sign_in failed for %s", email, exc_info=True)
         return None
     if res.user is None:
         return None

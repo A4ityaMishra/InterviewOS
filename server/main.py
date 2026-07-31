@@ -777,6 +777,11 @@ async def portal_verify_code(request: Request, body: PortalVerifyCodeBody):
     return {"ok": True, "redirect": "/portal"}
 
 
+@app.get("/api/portal/auth/me")
+async def portal_me(user: dict = Depends(auth.require_candidate)):
+    return user
+
+
 @app.get("/api/portal/applications")
 async def portal_applications(user: dict = Depends(auth.require_candidate)):
     apps = await applications.list_for_candidate(user["candidate_id"])

@@ -1,0 +1,41 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: interviewos-prod-91767
+  REGION: asia-south1
+  SERVICE: interviewos
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/518691610055/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: gh-deployer@interviewos-prod-91767.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy
+        run: |
+          gcloud run deploy $SERVICE \
+            --source . \
+            --project $PROJECT_ID \
+            --region $REGION \
+            --allow-unauthenticated \
+            --memory 1Gi \
+            --cpu 1 \
+            --timeout 3600 \
+            --port 8000 \
+            --set-secrets "SARVAM_API_KEY=sarvam-api-key:latest,LLM_PROVIDER=llm-provider:latest,OPENAI_API_KEY=openai-api-key:latest,OPENAI_MODEL=openai-model:latest,DEEPSEEK_API_KEY=deepseek-api-key:latest,DEEPSEEK_MODEL=deepseek-model:latest,INTERVIEW_DURATION_MIN=interview-duration-min:latest,ENDPOINT_SILENCE_MS=endpoint-silence-ms:latest,SPEECH_PROVIDER=speech-provider:latest,ELEVENLABS_API_KEY=elevenlabs-api-key:latest,ELEVENLABS_VOICE_ID=elevenlabs-voice-id:latest,SMALLEST_API_KEY=smallest-api-key:latest,SMALLEST_VOICE_ID=smallest-voice-id:latest,SMALLEST_SAMPLE_RATE=smallest-sample-rate:latest,OPENAI_REALTIME_MODEL=openai-realtime-model:latest,REALTIME_VOICE=realtime-voice:latest,SESSION_SECRET=session-secret:latest,SESSION_MAX_AGE_DAYS=session-max-age-days:latest,SESSION_HTTPS_ONLY=session-https-only:latest,SUPABASE_URL=supabase-url:latest,SUPABASE_ANON_KEY=supabase-anon-key:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest,DATABASE_URL=database-url:latest,ADMIN_EMAIL=admin-email:latest,ADMIN_PASSWORD=admin-password:latest,ADMIN_NAME=admin-name:latest,ADMIN_TEAM=admin-team:latest"

@@ -18,7 +18,7 @@ const fmtTime = ts => new Date(ts * 1000).toLocaleDateString([], { month: "short
 const badgeClass = status => status === "approved" ? "completed" : status === "rejected" ? "disconnected" : "created";
 
 async function loadMe() {
-  const resp = await fetch("/api/auth/me");
+  const resp = await fetch("/api/portal/auth/me");
   if (resp.status === 401) { window.location.href = "/portal/login"; return; }
   const me = await resp.json();
   document.getElementById("chip-name").textContent = me.name;
