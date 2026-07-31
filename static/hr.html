@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<title>InterviewOS — HR</title>
+<link rel="stylesheet" href="/static/theme.css?v=26">
+<style>
+  body { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+  .shell {
+    display: grid; grid-template-columns: 392px 1fr; gap: 16px;
+    flex: 1; min-height: 0; padding: 16px max(16px, 2vw) max(16px, 2vw);
+  }
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr; padding: 12px; }
+    .shell.viewing aside { display: none; }
+  }
+
+  aside {
+    background: rgba(245, 245, 247, .68);
+    backdrop-filter: saturate(1.8) blur(24px);
+    -webkit-backdrop-filter: saturate(1.8) blur(24px);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-2);
+    display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+    padding: 22px 0 0;
+  }
+
+  .tabs { display: flex; gap: 3px; background: var(--fill); border-radius: var(--radius-sm); padding: 4px; margin: 0 22px 16px; }
+  .tabs button { flex: 1; text-align: center; padding: 9px 10px; border-radius: 8px; background: none; border: 0; color: var(--text-2); font-weight: 600; font-size: .84rem; transition: background .2s var(--ease), color .2s var(--ease); }
+  .tabs button.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
+
+  .stats { margin: 0 22px 18px; }
+  .search { padding: 0 22px 14px; }
+  .search input {
+    width: 100%; background: var(--fill-2); border: 1px solid transparent; border-radius: 999px;
+    color: var(--text); padding: 9px 16px; font-size: .9rem;
+    transition: background .2s var(--ease), border-color .2s var(--ease), box-shadow .2s var(--ease);
+  }
+  .search input:focus { background: var(--surface); border-color: var(--blue); box-shadow: 0 0 0 4px rgba(0,113,227,.14); outline: none; }
+
+  .new-btn { margin: 0 22px 16px; }
+
+  #list { overflow-y: auto; scroll-behavior: smooth; flex: 1; padding: 0 14px 20px; display: flex; flex-direction: column; gap: 3px; }
+  .item {
+    position: relative; text-align: left; width: 100%;
+    background: transparent; border: 0; border-radius: 999px;
+    color: var(--text); padding: 11px 14px 11px 18px;
+    display: flex; align-items: center; gap: 12px;
+    transition: background .18s var(--ease), transform .18s var(--ease), box-shadow .18s var(--ease);
+    animation: step-in .32s var(--ease) backwards;
+  }
+  .item::before {
+    content: ""; position: absolute; left: 4px; top: 20%; bottom: 20%; width: 3px;
+    border-radius: 3px; background: var(--blue); opacity: 0;
+    transition: opacity .18s var(--ease), top .18s var(--ease), bottom .18s var(--ease);
+  }
+  .item:hover { background: rgba(0, 113, 227, .06); box-shadow: 0 4px 16px rgba(0, 113, 227, .14); }
+  .item:hover::before { opacity: .35; }
+  .item.active { background: var(--surface); box-shadow: var(--shadow-2); }
+  .item.active::before { opacity: 1; top: 10%; bottom: 10%; }
+  .item .av {
+    flex: none; width: 40px; height: 40px; border-radius: 50%;
+    display: grid; place-items: center; font-weight: 600; font-size: .88rem; color: #fff;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, .12);
+  }
+  .item .info { min-width: 0; flex: 1; }
+  .item .role { font-weight: 600; font-size: .9rem; letter-spacing: -.012em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item .meta { font-size: .76rem; color: var(--text-3); display: flex; gap: 7px; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item .badge { flex: none; }
+  .empty { color: var(--text-3); text-align: center; padding: 40px 24px; font-size: .9rem; }
+
+  section.view {
+    display: flex; flex-direction: column; min-height: 0;
+    background: rgba(255, 255, 255, .7);
+    backdrop-filter: saturate(1.8) blur(24px); -webkit-backdrop-filter: saturate(1.8) blur(24px);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-2); overflow: hidden;
+  }
+  .view > header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 16px max(22px, 3vw); border-bottom: .5px solid var(--hairline);
+    min-height: 78px;
+    background: rgba(255, 255, 255, .5);
+  }
+  .view header .head-av {
+    width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center;
+    font-weight: 600; color: #fff;
+    background: linear-gradient(165deg, #ffb84d, var(--orange-deep));
+  }
+  .view header h2 { font-size: 1.2rem; }
+  .view header .when { color: var(--text-3); font-size: .8rem; margin-top: 1px; }
+  .view header .spacer { flex: 1; }
+  #back { display: none; background: var(--fill-2); border: 0; border-radius: 999px; color: var(--text); padding: 8px 15px; font-weight: 500; font-size: .85rem; }
+  @media (max-width: 900px) { .shell.viewing #back { display: inline-flex; } }
+
+  #detail {
+    flex: 1; overflow-y: auto; padding: 30px max(22px, 3vw); max-width: 780px; width: 100%; margin: 0 auto;
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  .placeholder { margin: auto; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-3); text-align: center; animation: step-in .4s var(--ease); }
+  .placeholder svg { color: #d1d1d6; margin-bottom: 12px; animation: pop-in .6s var(--ease); }
+
+  .review-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 22px; }
+  .review-row { display: flex; justify-content: space-between; gap: 16px; padding: 12px 14px; background: var(--fill); border-radius: var(--radius-sm); }
+  .review-row .k { font-size: .8rem; color: var(--text-3); font-weight: 600; }
+  .review-row .v { font-size: .88rem; font-weight: 500; text-align: right; max-width: 62%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .review-row .v.muted { color: var(--text-3); font-weight: 400; }
+
+  .jd-viewer {
+    background: var(--fill);
+    border-radius: var(--radius-sm); padding: 14px 16px; font-size: .86rem;
+    line-height: 1.55; color: var(--text-2); white-space: pre-wrap;
+    margin-bottom: 20px;
+  }
+  /* cover notes / resumes can run very long — cap those specifically so one
+     doesn't dominate the whole page */
+  .jd-viewer.scrollable { max-height: 320px; overflow-y: auto; }
+  /* the primary description box (job description) grows to fill whatever
+     vertical space is left in the panel and scrolls internally, instead of
+     scrolling the whole detail pane */
+  .jd-viewer.fill { flex: 1; min-height: 120px; overflow-y: auto; }
+
+  .detail-actions { display: flex; gap: 10px; margin-top: 12px; }
+
+  .modal .field { display: flex; flex-direction: column; gap: 6px; font-size: .84rem; font-weight: 600; color: var(--text); margin-bottom: 16px; }
+  .modal .dropzone {
+    display: flex; align-items: center; gap: 10px;
+    border-radius: var(--radius-sm); padding: 12px 14px; cursor: pointer;
+    color: var(--text-2); font-size: .86rem; background: var(--fill); margin-bottom: 16px;
+    transition: background .2s var(--ease), transform .18s var(--ease), box-shadow .18s var(--ease);
+  }
+  .modal .dropzone:hover { background: var(--blue-soft); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0, 113, 227, .16); }
+  .modal .dropzone svg { flex: none; color: var(--blue); }
+  .modal .dropzone input { display: none; }
+  .modal .row { display: grid; grid-template-columns: 1fr 120px; gap: 14px; }
+</style>
+</head>
+<body>
+  <canvas id="fx-canvas" aria-hidden="true"></canvas>
+  <div class="hud hud-left" id="hud-clock" aria-hidden="true"></div>
+  <div class="hud hud-right" id="hud-coords" aria-hidden="true">X 0000&nbsp;&nbsp;Y 0000</div>
+  <div id="cursor-dot" aria-hidden="true"></div>
+
+  <header class="topnav">
+    <a class="brand" href="/welcome">
+      <span class="mark">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+          <path d="M6 10v4"/><path d="M12 5v14"/><path d="M18 8v8"/>
+        </svg>
+      </span>
+      InterviewOS
+    </a>
+    <nav aria-label="Primary">
+      <a href="/welcome">Home</a>
+      <a href="/test-room">Interview Room</a>
+      <a href="/ops">Ops Dashboard</a>
+      <a href="/team" id="nav-team" hidden>Manage Team</a>
+      <a href="/hr" class="active" aria-current="page">HR</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="user-chip" id="user-chip" hidden>
+      <button class="chip-trigger" id="chip-trigger" type="button" aria-haspopup="true" aria-expanded="false">
+        <span class="av" id="chip-av"></span>
+        <span class="name" id="chip-name"></span>
+        <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="user-menu" id="user-menu" role="menu">
+        <button type="button" id="change-pw-btn" role="menuitem">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          Change password
+        </button>
+        <hr>
+        <button type="button" class="danger" id="logout-btn" role="menuitem">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          Log out
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="shell" id="shell">
+    <aside>
+      <div class="tabs">
+        <button type="button" class="active" id="tab-applications">Applications</button>
+        <button type="button" id="tab-postings">Postings</button>
+      </div>
+
+      <div class="stats" id="app-stats" role="radiogroup" aria-label="Status filter">
+        <button type="button" class="stat active" data-filter="all" role="radio" aria-checked="true"><b id="st-pending">–</b><span>Pending</span></button>
+        <button type="button" class="stat" data-filter="approved" role="radio" aria-checked="false"><b id="st-approved">–</b><span>Approved</span></button>
+        <button type="button" class="stat" data-filter="rejected" role="radio" aria-checked="false"><b id="st-rejected">–</b><span>Rejected</span></button>
+      </div>
+
+      <button class="new-btn" id="new-posting-btn" type="button" hidden>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        New posting
+      </button>
+
+      <div class="search">
+        <input id="filter" type="search" placeholder="Search" autocomplete="off">
+      </div>
+
+      <nav id="list" aria-label="List"></nav>
+    </aside>
+
+    <section class="view">
+      <header>
+        <button id="back" aria-label="Back to list">Back</button>
+        <div class="head-av" id="view-av" hidden></div>
+        <div>
+          <h2 id="view-title">Select an item</h2>
+          <div class="when" id="view-meta"></div>
+        </div>
+        <div class="spacer"></div>
+        <span class="badge" id="view-status" hidden></span>
+      </header>
+      <div id="detail">
+        <div class="placeholder">
+          <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <div>Pick an item on the left to review it.</div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-scrim" id="create-posting-scrim" hidden>
+    <div class="modal">
+      <form id="create-posting-form">
+        <h3>New posting</h3>
+        <div class="sub">Publishes immediately — candidates can apply as soon as you save this.</div>
+        <label class="field">Role title
+          <input type="text" name="role" placeholder="e.g. Backend Software Engineer" required>
+        </label>
+        <label class="field">Job description
+          <textarea name="jd_text" rows="6" placeholder="Paste the JD here, or attach a file below"></textarea>
+        </label>
+        <label class="dropzone" id="cp-jd-drop">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+          <span data-empty="Attach JD file — PDF, DOCX or TXT (optional if pasted above)">Attach JD file — PDF, DOCX or TXT (optional if pasted above)</span>
+          <input type="file" name="jd_file" accept=".pdf,.docx,.txt,.md">
+        </label>
+        <div class="err" id="create-posting-err" role="alert" hidden style="color:var(--red-deep); font-size:.86rem; margin-bottom:14px;"></div>
+        <div class="actions">
+          <button type="button" class="btn-secondary" id="create-posting-cancel">Cancel</button>
+          <button type="submit" class="btn-primary" id="create-posting-submit">Publish posting</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-scrim" id="publish-scrim" hidden>
+    <div class="modal">
+      <form id="publish-form">
+        <h3>Publish posting</h3>
+        <div class="sub" id="publish-sub">Fill in the job description to open this role to applicants.</div>
+        <label class="field">Job description
+          <textarea name="jd_text" rows="6" placeholder="Paste the JD here, or attach a file below" required></textarea>
+        </label>
+        <label class="dropzone" id="pub-jd-drop">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+          <span data-empty="Attach JD file — PDF, DOCX or TXT (optional if pasted above)">Attach JD file — PDF, DOCX or TXT (optional if pasted above)</span>
+          <input type="file" name="jd_file" accept=".pdf,.docx,.txt,.md">
+        </label>
+        <div class="err" id="publish-err" role="alert" hidden style="color:var(--red-deep); font-size:.86rem; margin-bottom:14px;"></div>
+        <div class="actions">
+          <button type="button" class="btn-secondary" id="publish-cancel">Cancel</button>
+          <button type="submit" class="btn-primary" id="publish-submit">Publish</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-scrim" id="reject-scrim" hidden>
+    <div class="modal">
+      <form id="reject-form">
+        <h3>Reject application</h3>
+        <div class="sub">Optional — a short reason for your own records.</div>
+        <label class="field">Reason (optional)
+          <textarea name="reason" rows="3"></textarea>
+        </label>
+        <div class="actions">
+          <button type="button" class="btn-secondary" id="reject-cancel">Cancel</button>
+          <button type="submit" class="btn-primary" id="reject-submit">Reject</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-scrim" id="pw-scrim" hidden>
+    <div class="modal">
+      <form id="pw-form">
+        <h3>Change password</h3>
+        <div class="sub">Choose a new password for your own account.</div>
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <label class="field">Current password
+            <input type="password" name="current_password" autocomplete="current-password" required>
+          </label>
+          <label class="field">New password
+            <input type="password" name="new_password" autocomplete="new-password" minlength="8" required>
+          </label>
+          <label class="field">Confirm new password
+            <input type="password" name="confirm_password" autocomplete="new-password" minlength="8" required>
+          </label>
+        </div>
+        <div class="err" id="pw-err" role="alert" hidden style="color:var(--red-deep); font-size:.86rem; margin-top:14px;"></div>
+        <div class="err" id="pw-success" role="status" hidden style="color:var(--green-deep); font-size:.86rem; margin-top:14px;">Password updated.</div>
+        <div class="actions">
+          <button type="button" class="btn-secondary" id="pw-cancel">Cancel</button>
+          <button type="submit" class="btn-primary" id="pw-submit">Update password</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast-stack" aria-live="polite"></div>
+
+  <script src="/static/hr.js?v=6"></script>
+  <script src="/static/fx.js?v=11"></script>
+</body>
+</html>

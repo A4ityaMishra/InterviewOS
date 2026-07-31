@@ -22,3 +22,12 @@ def require_admin(request: Request) -> dict:
     if not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
+
+
+def require_hr(request: Request) -> dict:
+    """FastAPI dependency for HR-gated API routes: 401 if logged out, 403 if
+    logged in but neither HR team nor admin (admins bypass, same as elsewhere)."""
+    user = require_user(request)
+    if user.get("team") != "hr" and not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="HR access required")
+    return user

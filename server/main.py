@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import accounts, auth, config, costs, documents, speech, store
+from . import accounts, applications, auth, config, costs, documents, postings, speech, store
 from .agent import InterviewSession, build_system_prompt
 from .speech import StreamingSTT
 from .vad import UtteranceDetector
@@ -98,9 +98,34 @@ async def team_page(request: Request):
     return FileResponse("static/team.html")
 
 
+@app.get("/hr")
+async def hr_page(request: Request):
+    user = auth.current_user(request)
+    if user is None:
+        return RedirectResponse("/login")
+    if user.get("team") != "hr" and not user.get("is_admin"):
+        return RedirectResponse("/welcome")
+    return FileResponse("static/hr.html")
+
+
 @app.get("/interview/{session_id}")
 async def join_page(session_id: str):
     return FileResponse("static/join.html")
+
+
+@app.get("/apply")
+async def apply_list_page():
+    return FileResponse("static/apply.html")
+
+
+@app.get("/apply/general")
+async def apply_general_page():
+    return FileResponse("static/apply_general.html")
+
+
+@app.get("/apply/{job_id}")
+async def apply_form_page(job_id: str):
+    return FileResponse("static/apply_form.html")
 
 
 class LoginBody(BaseModel):
@@ -232,6 +257,59 @@ async def ops_session(session_id: str, user: dict = Depends(auth.require_user)):
     return rec
 
 
+def _create_interview_session(
+    role: str,
+    jd_text: str,
+    duration_min: int,
+    provider: str,
+    extra_docs: list[tuple[str, str]],
+    topics: str = "",
+    job_id: str | None = None,
+    application_id: str | None = None,
+) -> str:
+    """Build the system prompt, register the pending websocket setup, and
+    persist a new interview record. Shared by the manual /api/session flow
+    and the "schedule from an approved application" flow."""
+    duration = duration_min or config.INTERVIEW_DURATION_MIN
+    resolved_role = role.strip()
+    resolved_provider = provider if provider in ("pipeline", "realtime") else "pipeline"
+    resolved_topics = topics.strip()
+    prompt = build_system_prompt(
+        role=resolved_role,
+        duration_min=duration,
+        jd_text=jd_text.strip(),
+        extra_docs=extra_docs,
+        topics=resolved_topics,
+    )
+    session_id = uuid.uuid4().hex
+    if job_id is None:
+        # Same JD text (whitespace differences aside) -> same job_id, so reposting
+        # the same job description for multiple candidates groups their sessions
+        # together in the ops dashboard. No JD text -> job_id is just this
+        # session's own id (nothing to group it with).
+        jd_normalized = " ".join(jd_text.split())
+        job_id = hashlib.sha256(jd_normalized.encode("utf-8")).hexdigest()[:12] if jd_normalized else session_id
+    _sessions[session_id] = {
+        "prompt": prompt,
+        "duration_min": duration,
+        "topics": resolved_topics,
+        "provider": resolved_provider,
+    }
+    store.create(
+        session_id,
+        role=resolved_role,
+        duration_min=duration,
+        jd_present=bool(jd_text.strip()),
+        job_id=job_id,
+        jd_text=jd_text.strip(),
+        topics=resolved_topics,
+        provider=resolved_provider,
+    )
+    if application_id:
+        applications.set_session_id(application_id, session_id)
+    return session_id
+
+
 @app.post("/api/session")
 async def create_session(
     user: dict = Depends(auth.require_user),
@@ -261,41 +339,215 @@ async def create_session(
     for f in docs:
         extra.append((f.filename, documents.extract_text(f.filename, await f.read())))
 
-    duration = duration_min or config.INTERVIEW_DURATION_MIN
-    resolved_role = role.strip()
-    resolved_provider = provider if provider in ("pipeline", "realtime") else "pipeline"
-    resolved_topics = topics.strip()
-    prompt = build_system_prompt(
-        role=resolved_role,
-        duration_min=duration,
-        jd_text=jd_text.strip(),
+    session_id = _create_interview_session(
+        role=role,
+        jd_text=jd_text,
+        duration_min=duration_min,
+        provider=provider,
         extra_docs=extra,
-        topics=resolved_topics,
-    )
-    session_id = uuid.uuid4().hex
-    # Same JD text (whitespace differences aside) -> same job_id, so reposting
-    # the same job description for multiple candidates groups their sessions
-    # together in the ops dashboard. No JD text -> job_id is just this
-    # session's own id (nothing to group it with).
-    jd_normalized = " ".join(jd_text.split())
-    job_id = hashlib.sha256(jd_normalized.encode("utf-8")).hexdigest()[:12] if jd_normalized else session_id
-    _sessions[session_id] = {
-        "prompt": prompt,
-        "duration_min": duration,
-        "topics": resolved_topics,
-        "provider": resolved_provider,
-    }
-    store.create(
-        session_id,
-        role=resolved_role,
-        duration_min=duration,
-        jd_present=bool(jd_text.strip()),
-        job_id=job_id,
-        jd_text=jd_text.strip(),
-        topics=resolved_topics,
-        provider=resolved_provider,
+        topics=topics,
     )
     return {"session_id": session_id}
+
+
+@app.post("/api/applications/{application_id}/schedule")
+async def schedule_from_application(
+    application_id: str,
+    duration_min: int = Form(0),
+    topics: str = Form(""),
+    provider: str = Form("pipeline"),
+    user: dict = Depends(auth.require_user),
+):
+    """Ops creates an interview session from an already-approved application,
+    reusing its resume and the parent posting's role/JD, instead of manually
+    re-entering them. Duration/topics/engine are still ops's call per candidate."""
+    app_rec = applications.get(application_id)
+    if app_rec is None:
+        raise HTTPException(status_code=404, detail="Application not found")
+    if app_rec["status"] != "approved":
+        raise HTTPException(status_code=400, detail="Only approved applications can be scheduled")
+    if app_rec.get("session_id"):
+        raise HTTPException(status_code=400, detail="This application already has a scheduled interview")
+    posting = postings.get(app_rec["job_id"])
+    if posting is None:
+        raise HTTPException(status_code=404, detail="The job posting for this application no longer exists")
+
+    session_id = _create_interview_session(
+        role=posting["role"],
+        jd_text=posting["jd_text"],
+        duration_min=duration_min or posting.get("duration_min", 0),
+        provider=provider,
+        extra_docs=[(app_rec["resume_filename"], app_rec["resume_text"])],
+        topics=topics or posting.get("topics", ""),
+        job_id=posting["id"],
+        application_id=application_id,
+    )
+    return {"session_id": session_id}
+
+
+@app.get("/api/postings")
+async def list_postings(user: dict = Depends(auth.require_user)):
+    # readable by any logged-in team member — ops needs this to prefill
+    # role/duration/topics when scheduling from an approved application;
+    # only creating/publishing/closing postings is HR-gated
+    return postings.list_all()
+
+
+@app.post("/api/postings/request")
+async def request_posting(
+    role: str = Form(...),
+    notes: str = Form(""),
+    duration_min: int = Form(0),
+    user: dict = Depends(auth.require_user),
+):
+    """Ops asks HR to open a posting for a role — no JD yet, just a heads-up."""
+    if not role.strip():
+        raise HTTPException(status_code=400, detail="Role is required")
+    return postings.request(role.strip(), notes.strip(), user["username"], duration_min)
+
+
+@app.post("/api/postings")
+async def create_posting(
+    role: str = Form(""),
+    jd_text: str = Form(""),
+    duration_min: int = Form(0),
+    topics: str = Form(""),
+    jd_file: UploadFile | None = None,
+    user: dict = Depends(auth.require_hr),
+):
+    """HR/admin creates and immediately publishes a posting candidates can apply to."""
+    if jd_file is not None and jd_file.filename:
+        jd_text = documents.extract_text(jd_file.filename, await jd_file.read())
+    if not role.strip():
+        raise HTTPException(status_code=400, detail="Role is required")
+    if not jd_text.strip():
+        raise HTTPException(status_code=400, detail="A job description is required")
+    return postings.create(
+        role=role.strip(),
+        jd_text=jd_text.strip(),
+        duration_min=duration_min or config.INTERVIEW_DURATION_MIN,
+        created_by=user["username"],
+        topics=topics.strip(),
+    )
+
+
+@app.post("/api/postings/{posting_id}/publish")
+async def publish_posting(
+    posting_id: str,
+    jd_text: str = Form(""),
+    duration_min: int = Form(0),
+    topics: str = Form(""),
+    jd_file: UploadFile | None = None,
+    user: dict = Depends(auth.require_hr),
+):
+    """Turn a requested posting into an open one by filling in the JD."""
+    if jd_file is not None and jd_file.filename:
+        jd_text = documents.extract_text(jd_file.filename, await jd_file.read())
+    if not jd_text.strip():
+        raise HTTPException(status_code=400, detail="A job description is required")
+    posting = postings.publish(posting_id, jd_text.strip(), duration_min, topics.strip())
+    if posting is None:
+        raise HTTPException(status_code=404, detail="Posting not found")
+    return posting
+
+
+@app.post("/api/postings/{posting_id}/close")
+async def close_posting(posting_id: str, user: dict = Depends(auth.require_hr)):
+    posting = postings.close(posting_id)
+    if posting is None:
+        raise HTTPException(status_code=404, detail="Posting not found")
+    return posting
+
+
+@app.get("/api/postings/public")
+async def list_public_postings():
+    """Candidate-safe view of open postings for the public /apply list page."""
+    return [
+        {"id": p["id"], "role": p["role"], "jd_excerpt": p["jd_text"][:280]}
+        for p in postings.list_all()
+        if p["status"] == "open"
+    ]
+
+
+@app.get("/api/postings/{posting_id}/public")
+async def public_posting_detail(posting_id: str):
+    p = postings.get(posting_id)
+    if p is None or p["status"] != "open":
+        return {"error": "not found"}
+    return {"id": p["id"], "role": p["role"], "jd_text": p["jd_text"]}
+
+
+@app.post("/api/applications")
+async def submit_application(
+    job_id: str = Form(""),
+    applicant_name: str = Form(""),
+    applicant_email: str = Form(""),
+    applicant_phone: str = Form(""),
+    cover_note: str = Form(""),
+    resume_file: UploadFile | None = None,
+):
+    """Public, no-login application submission — either against a specific
+    open posting, or a general/speculative application (blank job_id, from
+    /apply/general) for candidates who don't see a matching role listed."""
+    job_id = job_id.strip()
+    if job_id:
+        posting = postings.get(job_id)
+        if posting is None or posting["status"] != "open":
+            raise HTTPException(status_code=404, detail="This job posting is no longer accepting applications")
+    else:
+        job_id = applications.GENERAL_JOB_ID
+    if not applicant_name.strip():
+        raise HTTPException(status_code=400, detail="Name is required")
+    if not applicant_email.strip():
+        raise HTTPException(status_code=400, detail="Email is required")
+    if resume_file is None or not resume_file.filename:
+        raise HTTPException(status_code=400, detail="A resume is required")
+    resume_text = documents.extract_text(resume_file.filename, await resume_file.read())
+    app_rec = applications.create(
+        job_id=job_id,
+        applicant_name=applicant_name.strip(),
+        applicant_email=applicant_email.strip(),
+        resume_filename=resume_file.filename,
+        resume_text=resume_text,
+        applicant_phone=applicant_phone.strip(),
+        cover_note=cover_note.strip(),
+    )
+    return {"application_id": app_rec["id"]}
+
+
+@app.get("/api/applications")
+async def list_applications(user: dict = Depends(auth.require_user)):
+    # readable by any logged-in team member (not just HR) so ops can see
+    # approved applications ready to schedule; only HR can review/decide
+    return applications.list_all()
+
+
+@app.get("/api/applications/{application_id}")
+async def get_application(application_id: str, user: dict = Depends(auth.require_user)):
+    app_rec = applications.get(application_id)
+    if app_rec is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    return app_rec
+
+
+class ReviewBody(BaseModel):
+    reason: str = ""
+
+
+@app.post("/api/applications/{application_id}/approve")
+async def approve_application(application_id: str, user: dict = Depends(auth.require_hr)):
+    app_rec = applications.set_status(application_id, "approved", reviewed_by=user["username"])
+    if app_rec is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    return app_rec
+
+
+@app.post("/api/applications/{application_id}/reject")
+async def reject_application(application_id: str, body: ReviewBody, user: dict = Depends(auth.require_hr)):
+    app_rec = applications.set_status(application_id, "rejected", reviewed_by=user["username"], rejection_reason=body.reason)
+    if app_rec is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    return app_rec
 
 
 class CallHandler:

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<title>Apply — InterviewOS</title>
+<link rel="stylesheet" href="/static/theme.css?v=26">
+<style>
+  main { display: flex; flex-direction: column; align-items: center; padding: 0 20px clamp(60px, 8vh, 100px); }
+
+  /* ---------- back bar ---------- */
+  .subbar { width: 100%; max-width: 1040px; padding: 18px 0 6px; }
+  .back-link {
+    display: inline-flex; align-items: center; gap: 7px;
+    color: var(--text-2); text-decoration: none; font-size: .88rem; font-weight: 600;
+    padding: 8px 14px 8px 10px; border-radius: 999px; margin-left: -10px;
+    transition: background .18s var(--ease), color .18s var(--ease), transform .15s var(--ease);
+  }
+  .back-link:hover { background: var(--fill-2); color: var(--text); transform: translateX(-2px); }
+  .back-link svg { flex: none; }
+
+  /* ---------- loading / invalid states ---------- */
+  .state-card { width: 100%; max-width: 480px; margin: clamp(28px, 8vh, 80px) auto 0; background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-2); padding: 40px; text-align: center; }
+  .glyph { width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 20px; display: grid; place-items: center; background: var(--fill-2); color: var(--text-2); }
+  .glyph.good { background: linear-gradient(165deg, #6ee7a0, var(--green-deep)); box-shadow: 0 10px 30px rgba(36,138,61,.3); color: #fff; }
+  .state-card h1 { font-size: 1.5rem; margin-bottom: 10px; }
+  .state-card p { color: var(--text-2); line-height: 1.5; margin-bottom: 22px; }
+
+  /* ---------- role hero ---------- */
+  .role-hero { width: 100%; max-width: 1040px; padding: 10px 0 30px; }
+  .role-hero h1 { font-size: clamp(1.8rem, 3.6vw, 2.5rem); margin-bottom: 10px; }
+  .role-hero .sub { color: var(--text-2); font-size: 1.02rem; max-width: 620px; line-height: 1.55; }
+
+  .process-strip {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 6px;
+    margin-top: 26px; padding: 18px clamp(16px, 3vw, 28px);
+    background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-1);
+    max-width: 720px;
+  }
+  .process-step { flex: none; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; width: 108px; }
+  .process-step .icon {
+    width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--blue-soft); color: var(--blue); flex: none;
+  }
+  .process-step .label { font-size: .78rem; font-weight: 600; color: var(--text); }
+  .process-arrow { flex: none; display: flex; align-items: center; color: var(--text-3); opacity: .45; margin-top: 15px; }
+  @media (max-width: 500px) {
+    .process-arrow { display: none; }
+    .process-strip { flex-wrap: wrap; justify-content: center; row-gap: 18px; }
+    .process-step { width: 40%; }
+  }
+
+  /* ---------- two-column layout ---------- */
+  .role-layout { width: 100%; max-width: 1040px; display: grid; grid-template-columns: 1fr 360px; gap: 40px; align-items: start; }
+  @media (max-width: 860px) {
+    .role-layout { grid-template-columns: 1fr; }
+    .apply-panel { position: static !important; }
+  }
+
+  /* ---------- JD prose ---------- */
+  .jd-panel { max-width: 680px; }
+  .jd-panel h2.section-label { font-size: .78rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); margin-bottom: 18px; }
+  .jd-prose { font-size: 1.02rem; line-height: 1.75; color: var(--text); }
+  .jd-prose h3 { font-size: 1.08rem; font-weight: 700; margin: 28px 0 10px; letter-spacing: -.01em; }
+  .jd-prose h3:first-child { margin-top: 0; }
+  .jd-prose p { margin-bottom: 16px; color: var(--text-2); }
+  .jd-prose ul { margin: 0 0 16px; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; }
+  .jd-prose li { color: var(--text-2); }
+
+  /* ---------- sticky apply panel ---------- */
+  .apply-panel { position: sticky; top: 86px; }
+  .apply-panel .card {
+    background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-2); padding: 28px;
+  }
+  .apply-panel h2 { font-size: 1.2rem; margin-bottom: 6px; }
+  .apply-panel .reassurance { color: var(--text-2); font-size: .86rem; line-height: 1.5; margin-bottom: 20px; }
+
+  #apply-form { display: flex; flex-direction: column; gap: 14px; }
+  .field { display: flex; flex-direction: column; gap: 6px; font-size: .84rem; font-weight: 600; color: var(--text); }
+  .field input, .field textarea {
+    background: var(--fill); border: 1px solid transparent; border-radius: var(--radius-sm);
+    color: var(--text); padding: 11px 13px; min-height: 44px; font: inherit;
+    transition: background .2s var(--ease), border-color .2s var(--ease), box-shadow .2s var(--ease);
+  }
+  .field textarea { resize: vertical; }
+  .field input:focus, .field textarea:focus { background: var(--surface); border-color: var(--blue); box-shadow: 0 0 0 4px rgba(0,113,227,.14); outline: none; }
+  .dropzone {
+    display: flex; align-items: center; gap: 10px;
+    border-radius: var(--radius-sm); padding: 12px 14px; cursor: pointer;
+    color: var(--text-2); font-size: .86rem; background: var(--fill);
+    transition: background .2s var(--ease), transform .18s var(--ease), box-shadow .18s var(--ease);
+  }
+  .dropzone:hover { background: var(--blue-soft); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0, 113, 227, .16); }
+  .dropzone svg { flex: none; color: var(--blue); }
+  .dropzone input { display: none; }
+  .err { color: var(--red-deep); font-size: .86rem; line-height: 1.4; }
+  .privacy-note { display: flex; align-items: flex-start; gap: 8px; margin-top: 16px; font-size: .78rem; color: var(--text-3); line-height: 1.5; }
+  .privacy-note svg { flex: none; margin-top: 2px; color: var(--text-3); }
+
+  /* ---------- mobile sticky apply bar ---------- */
+  .mobile-apply-bar { display: none; }
+  @media (max-width: 860px) {
+    .mobile-apply-bar {
+      display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 90;
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+      background: rgba(251, 251, 253, .92);
+      backdrop-filter: saturate(1.8) blur(20px); -webkit-backdrop-filter: saturate(1.8) blur(20px);
+      border-top: 1px solid var(--hairline);
+    }
+    .mobile-apply-bar .btn-primary { width: 100%; }
+    main { padding-bottom: 100px; }
+  }
+
+  /* ---------- done state ---------- */
+  .done-card { width: 100%; max-width: 520px; margin: clamp(28px, 8vh, 80px) auto 0; background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-2); padding: 44px; text-align: center; }
+  .done-card h1 { font-size: 1.6rem; margin-bottom: 10px; }
+  .done-card > p { color: var(--text-2); line-height: 1.55; margin-bottom: 28px; }
+  .done-checks { text-align: left; display: flex; flex-direction: column; gap: 14px; margin-bottom: 30px; }
+  .done-checks .step { display: flex; align-items: flex-start; gap: 12px; }
+  .done-checks .dot {
+    flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--blue-soft); color: var(--blue); font-size: .74rem; font-weight: 700; margin-top: 1px;
+  }
+  .done-checks .step.done .dot { background: rgba(52, 199, 89, .16); color: var(--green-deep); }
+  .done-checks .step-text b { display: block; font-size: .92rem; }
+  .done-checks .step-text span { font-size: .82rem; color: var(--text-2); }
+</style>
+</head>
+<body>
+  <canvas id="fx-canvas" aria-hidden="true"></canvas>
+  <div class="hud hud-left" id="hud-clock" aria-hidden="true"></div>
+  <div class="hud hud-right" id="hud-coords" aria-hidden="true">X 0000&nbsp;&nbsp;Y 0000</div>
+  <div id="cursor-dot" aria-hidden="true"></div>
+
+  <header class="topnav">
+    <a class="brand" href="/apply">
+      <span class="mark">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+          <path d="M6 10v4"/><path d="M12 5v14"/><path d="M18 8v8"/>
+        </svg>
+      </span>
+      InterviewOS
+    </a>
+    <div class="spacer"></div>
+  </header>
+
+  <main>
+    <div class="subbar" id="subbar" hidden>
+      <a href="/apply" class="back-link">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+        All open roles
+      </a>
+    </div>
+
+    <section class="state-card" id="loading-card">
+      <div class="glyph">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>
+      </div>
+      <h1>Loading…</h1>
+    </section>
+
+    <section class="state-card" id="invalid-card" hidden>
+      <div class="glyph">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+      </div>
+      <h1>This role isn't accepting applications</h1>
+      <p>The posting may have closed since you got this link. Take a look at what else is open right now.</p>
+      <a class="btn-primary" href="/apply" style="width:100%;">Browse open roles</a>
+    </section>
+
+    <div id="role-content" hidden>
+      <header class="role-hero">
+        <h1 id="role-title">—</h1>
+        <p class="sub">Read the full description below, then apply when you're ready — it takes about three minutes and a real person reviews it.</p>
+
+        <div class="process-strip">
+          <div class="process-step">
+            <div class="icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/><path d="M8 13h8M8 17h5"/></svg></div>
+            <div class="label">You apply</div>
+          </div>
+          <div class="process-arrow" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></div>
+          <div class="process-step">
+            <div class="icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div>
+            <div class="label">We review</div>
+          </div>
+          <div class="process-arrow" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></div>
+          <div class="process-step">
+            <div class="icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a4 4 0 0 1 4 4v5a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/></svg></div>
+            <div class="label">Interview</div>
+          </div>
+          <div class="process-arrow" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></div>
+          <div class="process-step">
+            <div class="icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></div>
+            <div class="label">You hear back</div>
+          </div>
+        </div>
+      </header>
+
+      <div class="role-layout">
+        <article class="jd-panel">
+          <h2 class="section-label">Full job description</h2>
+          <div class="jd-prose" id="jd-prose"></div>
+        </article>
+
+        <aside class="apply-panel" id="apply-panel">
+          <div class="card">
+            <h2>Apply for this role</h2>
+            <p class="reassurance">Takes about 3 minutes. We personally review every application and you'll hear back either way.</p>
+            <form id="apply-form">
+              <label class="field">Full name
+                <input type="text" name="applicant_name" autocomplete="name" required>
+              </label>
+              <label class="field">Email
+                <input type="email" name="applicant_email" autocomplete="email" required>
+              </label>
+              <label class="field">Phone (optional)
+                <input type="tel" name="applicant_phone" autocomplete="tel">
+              </label>
+              <label class="dropzone" id="resume-drop">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/><path d="M8 13h8M8 17h5"/></svg>
+                <span data-empty="Attach resume — PDF, DOCX or TXT (required)">Attach resume — PDF, DOCX or TXT (required)</span>
+                <input type="file" name="resume_file" accept=".pdf,.docx,.txt,.md" required>
+              </label>
+              <label class="field">Anything else you'd like us to know (optional)
+                <textarea name="cover_note" rows="3"></textarea>
+              </label>
+              <div class="err" id="apply-err" role="alert" hidden></div>
+              <button type="submit" class="btn-primary" id="apply-submit" style="width:100%;">Submit application</button>
+            </form>
+            <div class="privacy-note">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+              <span>Your information is only used to consider you for this role — nothing is shared beyond our hiring team.</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <section class="done-card" id="done-card" hidden>
+      <div class="glyph good">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
+      </div>
+      <h1>You're all set</h1>
+      <p>Thanks for applying, <span id="done-name">there</span> — here's exactly what happens next.</p>
+      <div class="done-checks">
+        <div class="step done">
+          <div class="dot"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg></div>
+          <div class="step-text"><b>Application received</b><span>We have your resume and details on file.</span></div>
+        </div>
+        <div class="step">
+          <div class="dot">2</div>
+          <div class="step-text"><b>A real person reviews it</b><span>No automated filtering — someone on our team reads every application.</span></div>
+        </div>
+        <div class="step">
+          <div class="dot">3</div>
+          <div class="step-text"><b>If it's a match, we'll reach out</b><span>By email, to schedule a short interview.</span></div>
+        </div>
+        <div class="step">
+          <div class="dot">4</div>
+          <div class="step-text"><b>You'll hear from us either way</b><span>We don't leave applicants hanging.</span></div>
+        </div>
+      </div>
+      <a class="btn-secondary" href="/apply" style="width:100%;">Browse other open roles</a>
+    </section>
+  </main>
+
+  <div class="mobile-apply-bar" id="mobile-apply-bar" hidden>
+    <a class="btn-primary" href="#apply-panel">Apply for this role</a>
+  </div>
+
+  <script src="/static/apply_form.js?v=2"></script>
+  <script src="/static/fx.js?v=11"></script>
+</body>
+</html>

@@ -38,6 +38,7 @@ async function loadMe() {
   av.textContent = initials(me.name);
   av.style = avStyle(me.name);
   document.getElementById("user-chip").hidden = false;
+  if (me.team === "hr" || me.is_admin) document.getElementById("nav-hr").hidden = false;
 }
 
 document.getElementById("logout-btn").addEventListener("click", async () => {

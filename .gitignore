@@ -5,3 +5,5 @@ data/interviews/
 data/tts_cache/
 data/doc_cache/
 data/accounts.json
+data/postings/
+data/applications/

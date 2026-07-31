@@ -41,6 +41,7 @@ async function loadMe() {
     document.getElementById("nav-team").hidden = false;
     document.getElementById("team-card").hidden = false;
   }
+  if (user.team === "hr" || user.is_admin) document.getElementById("nav-hr").hidden = false;
 }
 
 async function loadStats() {

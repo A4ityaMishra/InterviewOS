@@ -401,6 +401,150 @@ copyBtn.onclick = async () => {
   copyBtn.classList.add("copied");
 };
 
+// ---------- request a posting ----------
+const reqScrim = document.getElementById("request-posting-scrim");
+const reqForm = document.getElementById("request-posting-form");
+const reqErr = document.getElementById("request-posting-err");
+const reqSubmit = document.getElementById("request-posting-submit");
+const reqResult = document.getElementById("request-posting-result");
+
+document.getElementById("request-posting-btn").onclick = () => {
+  reqForm.reset();
+  reqForm.hidden = false;
+  reqResult.hidden = true;
+  reqErr.hidden = true;
+  reqScrim.hidden = false;
+};
+document.getElementById("request-posting-cancel").onclick = () => { reqScrim.hidden = true; };
+reqScrim.addEventListener("click", (e) => { if (e.target === reqScrim) reqScrim.hidden = true; });
+document.getElementById("request-posting-done").onclick = () => { reqScrim.hidden = true; };
+
+reqForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  reqErr.hidden = true;
+  reqSubmit.disabled = true;
+  reqSubmit.textContent = "Sending…";
+  try {
+    const fd = new FormData(reqForm);
+    const resp = await fetch("/api/postings/request", { method: "POST", body: fd });
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      reqErr.textContent = body.detail || "Could not send that request.";
+      reqErr.hidden = false;
+      return;
+    }
+    reqForm.hidden = true;
+    reqResult.hidden = false;
+  } finally {
+    reqSubmit.disabled = false;
+    reqSubmit.textContent = "Send request";
+  }
+});
+
+// ---------- schedule from an approved application ----------
+const scheduleScrim = document.getElementById("schedule-app-scrim");
+const schedulePick = document.getElementById("schedule-app-pick");
+const scheduleList = document.getElementById("schedule-app-list");
+const scheduleForm = document.getElementById("schedule-app-form");
+const scheduleSub = document.getElementById("schedule-app-sub");
+const scheduleErr = document.getElementById("schedule-app-err");
+const scheduleSubmit = document.getElementById("schedule-app-submit");
+const scheduleResult = document.getElementById("schedule-app-result");
+const scheduleLinkInput = document.getElementById("schedule-app-link-input");
+let schedulingApplicationId = null;
+
+async function openScheduleModal() {
+  schedulePick.hidden = false;
+  scheduleForm.hidden = true;
+  scheduleResult.hidden = true;
+  scheduleList.innerHTML = `<div class="empty" style="padding:20px 0;">Loading…</div>`;
+  scheduleScrim.hidden = false;
+
+  const [appsResp, postingsResp] = await Promise.all([
+    fetch("/api/applications"),
+    fetch("/api/postings"),
+  ]);
+  const apps = await appsResp.json();
+  const postings = await postingsResp.json();
+  const postingsById = Object.fromEntries(postings.map(p => [p.id, p]));
+
+  // general applications (from /apply/general) have no posting/JD behind
+  // them to prefill from, so they're not eligible for this one-click flow —
+  // schedule those via the regular "New interview" flow instead
+  const ready = apps.filter(a => a.status === "approved" && !a.session_id && a.job_id !== "general");
+  if (!ready.length) {
+    scheduleList.innerHTML = `<div class="empty" style="padding:20px 0;">No approved applications waiting to be scheduled.</div>`;
+    return;
+  }
+  scheduleList.innerHTML = "";
+  ready.forEach((a) => {
+    const posting = postingsById[a.job_id];
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "pickable-row";
+    row.innerHTML = `<div><div class="name"></div><div class="role"></div></div>`;
+    row.querySelector(".name").textContent = a.applicant_name;
+    row.querySelector(".role").textContent = posting ? posting.role : "Unknown role";
+    row.onclick = () => pickApplication(a, posting);
+    scheduleList.appendChild(row);
+  });
+}
+
+function pickApplication(app, posting) {
+  schedulingApplicationId = app.id;
+  schedulePick.hidden = true;
+  scheduleForm.hidden = false;
+  scheduleErr.hidden = true;
+  scheduleForm.reset();
+  scheduleForm.duration_min.value = (posting && posting.duration_min) || 20;
+  scheduleForm.topics.value = (posting && posting.topics) || "";
+  scheduleSub.textContent = `${app.applicant_name} — ${posting ? posting.role : "Unknown role"}`;
+}
+
+document.getElementById("schedule-app-btn").onclick = openScheduleModal;
+document.getElementById("schedule-app-back").onclick = () => {
+  schedulePick.hidden = false;
+  scheduleForm.hidden = true;
+};
+scheduleScrim.addEventListener("click", (e) => { if (e.target === scheduleScrim) scheduleScrim.hidden = true; });
+document.getElementById("schedule-app-done").onclick = () => { scheduleScrim.hidden = true; loadSessions(); };
+
+scheduleForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  scheduleErr.hidden = true;
+  scheduleSubmit.disabled = true;
+  scheduleSubmit.textContent = "Creating…";
+  try {
+    const fd = new FormData(scheduleForm);
+    const resp = await fetch(`/api/applications/${schedulingApplicationId}/schedule`, { method: "POST", body: fd });
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      scheduleErr.textContent = body.detail || "Could not schedule this interview.";
+      scheduleErr.hidden = false;
+      return;
+    }
+    const { session_id } = await resp.json();
+    scheduleLinkInput.value = `${location.origin}/interview/${session_id}`;
+    scheduleForm.hidden = true;
+    scheduleResult.hidden = false;
+  } finally {
+    scheduleSubmit.disabled = false;
+    scheduleSubmit.textContent = "Create link";
+  }
+});
+
+document.getElementById("schedule-app-copy-btn").onclick = async () => {
+  scheduleLinkInput.select();
+  try {
+    await navigator.clipboard.writeText(scheduleLinkInput.value);
+  } catch {
+    document.execCommand("copy");
+  }
+  const btn = document.getElementById("schedule-app-copy-btn");
+  btn.textContent = "Copied";
+  btn.classList.add("copied");
+};
+
 // ---------- interview details panel ----------
 const detailScrim = document.getElementById("detail-scrim");
 const fmtDuration = (seconds) => {
@@ -465,6 +609,8 @@ async function loadMe() {
   av.style = avStyle(user.name);
   document.getElementById("user-chip").hidden = false;
   if (user.is_admin) document.getElementById("nav-team").hidden = false;
+  if (user.team === "hr" || user.is_admin) document.getElementById("nav-hr").hidden = false;
+  return user;
 }
 document.getElementById("logout-btn").addEventListener("click", async () => {
   await fetch("/api/auth/logout", { method: "POST" });

@@ -105,7 +105,7 @@ def _cli():
     add_p = sub.add_parser("add", help="Add or replace a teammate account")
     add_p.add_argument("username")
     add_p.add_argument("password")
-    add_p.add_argument("--team", default="technical")
+    add_p.add_argument("--team", default="technical", help="technical | sales | hr")
     add_p.add_argument("--name", default="")
     add_p.add_argument("--admin", action="store_true", help="Grant admin access")
 

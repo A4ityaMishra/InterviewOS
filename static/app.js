@@ -92,6 +92,7 @@ function initials(name) {
   av.style = avStyle(user.name);
   document.getElementById("user-chip").hidden = false;
   if (user.is_admin) document.getElementById("nav-team").hidden = false;
+  if (user.team === "hr" || user.is_admin) document.getElementById("nav-hr").hidden = false;
 })();
 document.getElementById("logout-btn").addEventListener("click", async () => {
   await fetch("/api/auth/logout", { method: "POST" });
