@@ -92,9 +92,15 @@ SESSION_MAX_AGE_DAYS = int(os.getenv("SESSION_MAX_AGE_DAYS", "14"))
 # set true in production behind HTTPS; false lets local http:// dev set cookies
 SESSION_HTTPS_ONLY = os.getenv("SESSION_HTTPS_ONLY", "false").lower() == "true"
 
-# First-run admin account, seeded once if data/accounts.json is empty/missing.
-# Add more teammates afterward with: python -m server.accounts add <user> <pass> --team ... --name "..."
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "")
+# ---------- Supabase (Postgres data + Auth) ----------
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+
+# First-run admin account, seeded once if staff_profiles is empty.
+# Add more teammates afterward via /team (requires an existing admin).
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 ADMIN_NAME = os.getenv("ADMIN_NAME", "Admin")
 ADMIN_TEAM = os.getenv("ADMIN_TEAM", "technical")

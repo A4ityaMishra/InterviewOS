@@ -28,7 +28,9 @@
   }
 
   .card h1 { font-size: 1.5rem; margin-bottom: 6px; }
-  .card .sub { color: var(--text-2); font-size: .92rem; margin-bottom: 28px; }
+  .card .sub { color: var(--text-2); font-size: .92rem; margin-bottom: 22px; }
+
+  .mode-toggle { margin-bottom: 20px; text-align: left; }
 
   form { display: flex; flex-direction: column; gap: 14px; text-align: left; }
   .field { display: flex; flex-direction: column; gap: 7px; font-size: .84rem; font-weight: 600; color: var(--text); }
@@ -43,17 +45,7 @@
     box-shadow: 0 0 0 4px rgba(0, 113, 227, .14); outline: none;
   }
 
-  .pw-wrap { position: relative; }
-  .pw-wrap input { width: 100%; padding-right: 44px; }
-  .pw-toggle {
-    position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
-    width: 38px; height: 38px; border: 0; background: transparent; border-radius: 8px;
-    display: grid; place-items: center; color: var(--text-3);
-    transition: color .2s var(--ease), background .2s var(--ease);
-  }
-  .pw-toggle:hover { color: var(--text-2); background: var(--fill-2); }
-
-  #submit-btn { margin-top: 6px; width: 100%; }
+  #submit-btn, #code-request-btn, #code-verify-btn { margin-top: 6px; width: 100%; }
 
   .err {
     display: flex; align-items: center; gap: 8px;
@@ -63,7 +55,18 @@
   }
   .err svg { flex: none; }
 
+  .info-msg {
+    background: var(--blue-soft); color: var(--blue);
+    border-radius: var(--radius-sm); padding: 11px 13px; font-size: .86rem; line-height: 1.4;
+    animation: step-in .3s var(--ease);
+  }
+
   .hint { text-align: center; color: var(--text-3); font-size: .82rem; margin-top: 22px; line-height: 1.5; }
+  .hint a { color: var(--blue); font-weight: 600; }
+  .link-btn {
+    background: none; border: 0; color: var(--blue); font-weight: 600; font-size: .84rem;
+    cursor: pointer; padding: 0; text-align: left;
+  }
 
   .card { perspective: 900px; }
 </style>
@@ -75,7 +78,7 @@
   <div id="cursor-dot" aria-hidden="true"></div>
 
   <header class="topnav">
-    <a class="brand" href="/login" style="pointer-events:none;">
+    <a class="brand" href="/apply" style="pointer-events:none;">
       <span class="mark">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
           <path d="M6 10v4"/><path d="M12 5v14"/><path d="M18 8v8"/>
@@ -94,34 +97,58 @@
         </svg>
       </div>
       <h1>Sign in</h1>
-      <p class="sub">Access the ops dashboard and test room.</p>
+      <p class="sub">Check your application status and join your interview.</p>
 
-      <form id="login-form" autocomplete="on">
+      <div class="mode-toggle segmented">
+        <input type="radio" name="mode" id="mode-password" checked>
+        <label for="mode-password"><b>Password</b></label>
+        <input type="radio" name="mode" id="mode-code">
+        <label for="mode-code"><b>Email me a code</b></label>
+      </div>
+
+      <form id="password-form" autocomplete="on">
         <label class="field">Email
           <input type="email" name="email" autocomplete="email" required autofocus>
         </label>
         <label class="field">Password
-          <div class="pw-wrap">
-            <input type="password" name="password" id="pw-input" autocomplete="current-password" required>
-            <button type="button" class="pw-toggle" id="pw-toggle" aria-label="Show password" aria-pressed="false">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
-                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>
-              </svg>
-            </button>
-          </div>
+          <input type="password" name="password" autocomplete="current-password" required>
         </label>
-        <div class="err" id="err" role="alert" aria-live="polite" hidden>
+        <div class="err" id="pw-err" role="alert" aria-live="polite" hidden>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
-          <span id="err-text">Invalid email or password.</span>
+          <span id="pw-err-text">Invalid email or password.</span>
         </div>
         <button type="submit" class="btn-primary" id="submit-btn">Sign in</button>
       </form>
 
-      <p class="hint">Don't have an account? Ask your ops admin to add you.</p>
+      <form id="code-request-form" autocomplete="on" hidden>
+        <label class="field">Email
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <div class="err" id="code-req-err" role="alert" hidden>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+          <span id="code-req-err-text">Something went wrong.</span>
+        </div>
+        <button type="submit" class="btn-primary" id="code-request-btn">Send code</button>
+      </form>
+
+      <form id="code-verify-form" autocomplete="off" hidden>
+        <p class="info-msg" id="code-sent-msg"></p>
+        <label class="field">6-digit code
+          <input type="text" name="code" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" required autofocus>
+        </label>
+        <div class="err" id="code-verify-err" role="alert" hidden>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+          <span id="code-verify-err-text">Invalid or expired code.</span>
+        </div>
+        <button type="submit" class="btn-primary" id="code-verify-btn">Verify &amp; sign in</button>
+        <button type="button" class="link-btn" id="code-back-btn" style="margin-top:10px;">Use a different email</button>
+      </form>
+
+      <p class="hint">New here? <a href="/portal/signup">Create an account</a></p>
     </section>
   </main>
 
-  <script src="/static/login.js?v=3"></script>
+  <script src="/static/portal_login.js?v=1"></script>
   <script src="/static/fx.js?v=11"></script>
   <script>window.fxWordReveal(document.querySelector(".card h1"));</script>
 </body>

@@ -250,7 +250,7 @@ function selectApplication(id) {
       <div class="review-row"><span class="k">Posting ID</span><span class="v ${a.job_id === GENERAL_JOB_ID ? "muted" : ""}" id="app-posting-id-value" ${a.job_id === GENERAL_JOB_ID ? "" : 'style="font-family: ui-monospace, monospace; cursor: pointer;" title="Click to copy"'}>${a.job_id === GENERAL_JOB_ID ? "No posting — general application" : a.job_id}</span></div>
       <div class="review-row"><span class="k">Email</span><span class="v">${a.applicant_email}</span></div>
       <div class="review-row"><span class="k">Phone</span><span class="v ${a.applicant_phone ? "" : "muted"}">${a.applicant_phone || "Not provided"}</span></div>
-      <div class="review-row"><span class="k">Reviewed by</span><span class="v ${a.reviewed_by ? "" : "muted"}">${a.reviewed_by || "Not yet reviewed"}</span></div>
+      <div class="review-row"><span class="k">Reviewed by</span><span class="v ${a.reviewed_by ? "" : "muted"}">${a.reviewed_by_name || "Not yet reviewed"}</span></div>
     </div>
     ${a.cover_note ? `<div class="sub" style="margin-bottom:8px;">Cover note</div><div class="jd-viewer scrollable">${a.cover_note}</div>` : ""}
     <div class="sub" style="margin-bottom:8px;">Resume</div>
@@ -338,7 +338,7 @@ function renderPostings() {
     row.querySelector(".av").style = avStyle(p.role);
     row.querySelector(".av").textContent = initials(p.role);
     row.querySelector(".role").textContent = p.role;
-    row.querySelector(".meta span").textContent = `Requested by ${p.created_by} · ${fmtTime(p.created_at)}`;
+    row.querySelector(".meta span").textContent = `Requested by ${p.created_by_name} · ${fmtTime(p.created_at)}`;
     row.querySelector(".badge").textContent = p.status;
     row.onclick = () => selectPosting(p.id);
     listEl.appendChild(row);
@@ -355,7 +355,7 @@ function selectPosting(id) {
   viewAv.textContent = initials(p.role);
   viewAv.style = avStyle(p.role);
   viewTitle.textContent = p.role;
-  viewMeta.textContent = `Requested by ${p.created_by} · ${fmtTime(p.created_at)}`;
+  viewMeta.textContent = `Requested by ${p.created_by_name} · ${fmtTime(p.created_at)}`;
   viewStatus.hidden = false;
   const badgeClass = p.status === "open" ? "completed" : p.status === "closed" ? "disconnected" : "created";
   viewStatus.className = `badge ${badgeClass}`;
@@ -373,7 +373,7 @@ function selectPosting(id) {
       <div class="review-row"><span class="k">Posting ID</span><span class="v" id="posting-id-value" style="font-family: ui-monospace, monospace; cursor: pointer;" title="Click to copy">${p.id}</span></div>
       <div class="review-row"><span class="k">Applications</span><span class="v">${appCount}</span></div>
     </div>
-    ${p.notes ? `<div class="sub" style="margin-bottom:8px;">Request note from ${p.created_by}</div><div class="jd-viewer scrollable">${p.notes}</div>` : ""}
+    ${p.notes ? `<div class="sub" style="margin-bottom:8px;">Request note from ${p.created_by_name}</div><div class="jd-viewer scrollable">${p.notes}</div>` : ""}
     ${p.jd_text ? `<div class="sub" style="margin-bottom:8px;">Job description</div><div class="jd-viewer fill">${p.jd_text}</div>` : ""}
     ${actions}`;
 
@@ -497,7 +497,7 @@ function openPublishModal(p) {
   publishingId = p.id;
   publishForm.reset();
   document.getElementById("publish-sub").textContent =
-    `Requested by ${p.created_by}${p.notes ? `: "${p.notes}"` : ""} — fill in the JD to open this role.`;
+    `Requested by ${p.created_by_name}${p.notes ? `: "${p.notes}"` : ""} — fill in the JD to open this role.`;
   publishErr.hidden = true;
   publishScrim.hidden = false;
 }

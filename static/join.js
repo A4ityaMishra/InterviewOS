@@ -10,6 +10,7 @@ const stepWelcome = document.getElementById("step-welcome");
 const stepCheck = document.getElementById("step-check");
 const stepReady = document.getElementById("step-ready");
 const rolePill = document.getElementById("role-pill");
+const welcomeHeading = document.getElementById("welcome-heading");
 const durText = document.getElementById("dur-text");
 const toCheckBtn = document.getElementById("to-check");
 const backToWelcomeBtn = document.getElementById("back-to-welcome");
@@ -56,6 +57,10 @@ async function loadInfo() {
     const info = await resp.json();
     if (info.error) throw new Error("not found");
     rolePill.textContent = info.role;
+    if (info.applicant_name) {
+      const firstName = info.applicant_name.trim().split(/\s+/)[0];
+      welcomeHeading.textContent = `Welcome, ${firstName}`;
+    }
     durText.textContent = info.duration_min;
     document.getElementById("welcome-copy").textContent =
       `You've been invited to a short spoken interview for the ${info.role} role. It's a conversation, not a test of memorization — take your time and think out loud.`;

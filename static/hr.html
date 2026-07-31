@@ -51,15 +51,12 @@
     transition: background .18s var(--ease), transform .18s var(--ease), box-shadow .18s var(--ease);
     animation: step-in .32s var(--ease) backwards;
   }
-  .item::before {
-    content: ""; position: absolute; left: 4px; top: 20%; bottom: 20%; width: 3px;
-    border-radius: 3px; background: var(--blue); opacity: 0;
-    transition: opacity .18s var(--ease), top .18s var(--ease), bottom .18s var(--ease);
-  }
-  .item:hover { background: rgba(0, 113, 227, .06); box-shadow: 0 4px 16px rgba(0, 113, 227, .14); }
-  .item:hover::before { opacity: .35; }
-  .item.active { background: var(--surface); box-shadow: var(--shadow-2); }
-  .item.active::before { opacity: 1; top: 10%; bottom: 10%; }
+  /* inset box-shadow, not a straight ::before bar — .item is a full pill
+     (border-radius: 999px) so its left edge is a semicircle, and a straight
+     bar pokes outside that curve. box-shadow clips to the border-radius
+     automatically. See static/ops.html for the fuller note. */
+  .item:hover { background: rgba(0, 113, 227, .06); box-shadow: 0 4px 16px rgba(0, 113, 227, .14), inset 3px 0 0 0 rgba(0, 113, 227, .35); }
+  .item.active { background: var(--surface); box-shadow: var(--shadow-2), inset 3px 0 0 0 var(--blue); }
   .item .av {
     flex: none; width: 40px; height: 40px; border-radius: 50%;
     display: grid; place-items: center; font-weight: 600; font-size: .88rem; color: #fff;
@@ -315,7 +312,7 @@
 
   <div id="toast-stack" aria-live="polite"></div>
 
-  <script src="/static/hr.js?v=9"></script>
+  <script src="/static/hr.js?v=10"></script>
   <script src="/static/fx.js?v=11"></script>
 </body>
 </html>

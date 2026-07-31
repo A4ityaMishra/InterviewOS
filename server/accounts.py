@@ -1,131 +1,126 @@
-"""Local account store: data/accounts.json maps username -> account dict.
-
-Single-process safe, same pattern as server/store.py. Swap for a real DB
-if this ever needs concurrent multi-writer access.
+"""Staff accounts. Identity/passwords live in Supabase Auth (server/supa_auth.py);
+team/name/is_admin live in the staff_profiles table, joined to auth.users by id.
 """
 
 import argparse
-import json
+import asyncio
 import secrets
-import time
-from pathlib import Path
 
-import bcrypt
-
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-PATH = DATA_DIR / "accounts.json"
-
-
-def _read_all() -> dict:
-    if not PATH.exists():
-        return {}
-    return json.loads(PATH.read_text())
-
-
-def _write_all(data: dict):
-    PATH.write_text(json.dumps(data, ensure_ascii=False, indent=1))
+from . import db, supa_auth
 
 
 def generate_password(length: int = 14) -> str:
     return secrets.token_urlsafe(length)[:length]
 
 
-def create(username: str, password: str, team: str, name: str, is_admin: bool = False) -> dict:
-    accounts = _read_all()
-    key = username.strip().lower()
-    account = {
-        "username": key,
-        "password_hash": bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode(),
-        "team": team,
-        "name": name,
-        "is_admin": is_admin,
-        "created_at": time.time(),
+def _row_to_account(row) -> dict:
+    return {
+        "user_id": str(row["user_id"]),
+        "email": row["email"],
+        "team": row["team"],
+        "name": row["name"],
+        "is_admin": row["is_admin"],
+        "created_at": row["created_at"].timestamp(),
     }
-    accounts[key] = account
-    _write_all(accounts)
-    return account
 
 
-def get(username: str) -> dict | None:
-    return _read_all().get(username.strip().lower())
+_SELECT = """
+    select sp.user_id, au.email, sp.team, sp.name, sp.is_admin, sp.created_at
+    from staff_profiles sp join auth.users au on au.id = sp.user_id
+"""
 
 
-def verify(username: str, password: str) -> dict | None:
-    account = get(username)
-    if account is None:
+async def create(email: str, password: str, team: str, name: str, is_admin: bool = False) -> dict:
+    user_id = await supa_auth.create_user(email.strip().lower(), password)
+    await db.execute(
+        "insert into staff_profiles (user_id, team, name, is_admin) values ($1, $2, $3, $4)",
+        user_id, team, name, is_admin,
+    )
+    return await get_by_id(user_id)
+
+
+async def get(email: str) -> dict | None:
+    row = await db.fetchrow(_SELECT + " where lower(au.email) = lower($1)", email.strip())
+    return _row_to_account(row) if row else None
+
+
+async def get_by_id(user_id: str) -> dict | None:
+    row = await db.fetchrow(_SELECT + " where sp.user_id = $1", user_id)
+    return _row_to_account(row) if row else None
+
+
+async def verify(email: str, password: str) -> dict | None:
+    signed_in = await supa_auth.sign_in(email.strip().lower(), password)
+    if signed_in is None:
         return None
-    if not bcrypt.checkpw(password.encode(), account["password_hash"].encode()):
-        return None
-    return account
+    return await get_by_id(signed_in["user_id"])
 
 
-def list_all() -> list[dict]:
-    return list(_read_all().values())
+async def list_all() -> list[dict]:
+    rows = await db.fetch(_SELECT + " order by sp.created_at")
+    return [_row_to_account(r) for r in rows]
 
 
-def set_password(username: str, new_password: str) -> bool:
-    accounts = _read_all()
-    key = username.strip().lower()
-    if key not in accounts:
+async def set_password(user_id: str, new_password: str) -> bool:
+    if await get_by_id(user_id) is None:
         return False
-    accounts[key]["password_hash"] = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
-    _write_all(accounts)
+    await supa_auth.set_password(user_id, new_password)
     return True
 
 
-def delete(username: str) -> bool:
-    accounts = _read_all()
-    key = username.strip().lower()
-    if key not in accounts:
+async def delete(user_id: str) -> bool:
+    if await get_by_id(user_id) is None:
         return False
-    del accounts[key]
-    _write_all(accounts)
+    await db.execute("delete from staff_profiles where user_id = $1", user_id)
+    await supa_auth.delete_user(user_id)
     return True
 
 
-def count_admins() -> int:
-    return sum(1 for a in list_all() if a.get("is_admin"))
+async def count_admins() -> int:
+    return await db.fetchval("select count(*) from staff_profiles where is_admin = true")
 
 
-def seed_admin_if_empty(username: str, password: str, team: str, name: str):
-    """Called once at app startup. No-op if accounts already exist or the
-    admin env vars weren't set."""
-    if not username or not password:
+async def seed_admin_if_empty(email: str, password: str, team: str, name: str) -> None:
+    """Called once at app startup. No-op if any staff account already exists
+    or the admin env vars weren't set."""
+    if not email or not password:
         return
-    if _read_all():
+    if await db.fetchval("select count(*) from staff_profiles"):
         return
-    create(username, password, team, name, is_admin=True)
+    await create(email, password, team, name, is_admin=True)
 
 
-def _cli():
+async def _cli_async():
     parser = argparse.ArgumentParser(prog="python -m server.accounts")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    add_p = sub.add_parser("add", help="Add or replace a teammate account")
-    add_p.add_argument("username")
+    add_p = sub.add_parser("add", help="Add a teammate account")
+    add_p.add_argument("email")
     add_p.add_argument("password")
     add_p.add_argument("--team", default="technical", help="technical | sales | hr")
     add_p.add_argument("--name", default="")
     add_p.add_argument("--admin", action="store_true", help="Grant admin access")
 
     remove_p = sub.add_parser("remove", help="Remove an account")
-    remove_p.add_argument("username")
+    remove_p.add_argument("email")
 
-    sub.add_parser("list", help="List accounts (no password hashes shown)")
+    sub.add_parser("list", help="List accounts")
 
     args = parser.parse_args()
+    await db.connect()
+    await supa_auth.connect()
     if args.cmd == "add":
-        create(args.username, args.password, args.team, args.name or args.username, is_admin=args.admin)
-        print(f"Added/updated account: {args.username} (team={args.team}, admin={args.admin})")
+        await create(args.email, args.password, args.team, args.name or args.email, is_admin=args.admin)
+        print(f"Added account: {args.email} (team={args.team}, admin={args.admin})")
     elif args.cmd == "remove":
-        ok = delete(args.username)
+        account = await get(args.email)
+        ok = await delete(account["user_id"]) if account else False
         print("Removed." if ok else "No such account.")
     elif args.cmd == "list":
-        for a in list_all():
-            admin_tag = " [admin]" if a.get("is_admin") else ""
-            print(f"{a['username']:<20} team={a['team']:<12} name={a['name']}{admin_tag}")
+        for a in await list_all():
+            admin_tag = " [admin]" if a["is_admin"] else ""
+            print(f"{a['email']:<30} team={a['team']:<12} name={a['name']}{admin_tag}")
 
 
 if __name__ == "__main__":
-    _cli()
+    asyncio.run(_cli_async())

@@ -8,9 +8,20 @@ def current_user(request: Request) -> dict | None:
 
 
 def require_user(request: Request) -> dict:
-    """FastAPI dependency for API routes: 401 JSON if not logged in."""
+    """FastAPI dependency for staff API routes: 401 JSON if not logged in as
+    staff. A candidate-portal session (kind="candidate") does not satisfy
+    this — without the check, a signed-in candidate's session would pass
+    require_user and reach staff-only endpoints like /api/ops/sessions."""
     user = current_user(request)
-    if user is None:
+    if user is None or user.get("kind") != "staff":
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return user
+
+
+def require_candidate(request: Request) -> dict:
+    """FastAPI dependency for candidate-portal API routes."""
+    user = current_user(request)
+    if user is None or user.get("kind") != "candidate":
         raise HTTPException(status_code=401, detail="Not authenticated")
     return user
 

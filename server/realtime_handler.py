@@ -101,7 +101,7 @@ class RealtimeCallHandler:
 
     async def run(self):
         await self.ws.accept()
-        store.set_status(self.session_id, "live")
+        await store.set_status(self.session_id, "live")
 
         try:
             self._rt_ws = await websockets.connect(
@@ -160,7 +160,7 @@ class RealtimeCallHandler:
                 elif etype == "conversation.item.input_audio_transcription.completed":
                     text = (event.get("transcript") or "").strip()
                     if text:
-                        store.append_message(self.session_id, "candidate", text)
+                        await store.append_message(self.session_id, "candidate", text)
                         await self.send(type="transcript", text=text)
 
                 elif etype == "response.output_item.added":
@@ -195,7 +195,7 @@ class RealtimeCallHandler:
                 elif etype == "response.audio_transcript.done":
                     full = (event.get("transcript") or agent_text).strip()
                     if full:
-                        store.append_message(self.session_id, "agent", full)
+                        await store.append_message(self.session_id, "agent", full)
                         await self.send(type="agent_text", text=full)
                     agent_text = ""
 
@@ -216,7 +216,7 @@ class RealtimeCallHandler:
                 elif etype == "response.done":
                     speaking = False
                     if self.ended:
-                        store.set_status(self.session_id, "completed")
+                        await store.set_status(self.session_id, "completed")
                         await self.send(type="end")
                     else:
                         await self.send(type="status", state="listening")
@@ -326,4 +326,4 @@ class RealtimeCallHandler:
             await self._rt_send({"type": "response.create"})
         except Exception:
             log.exception("hard timeout inject failed")
-        store.set_status(self.session_id, "completed")
+        await store.set_status(self.session_id, "completed")

@@ -114,16 +114,14 @@
      so the animation releases the element back to its resting style once
      it finishes, instead of permanently locking out fx.js's tilt effect. */
   .item.entering { animation: step-in .32s var(--ease) backwards; }
-  .item::before {
-    content: ""; position: absolute; left: 4px; top: 20%; bottom: 20%; width: 3px;
-    border-radius: 3px; background: var(--blue); opacity: 0;
-    transition: opacity .18s var(--ease), top .18s var(--ease), bottom .18s var(--ease);
-  }
-  /* transform is driven by fx.js's tilt effect while hovering */
-  .item:hover { background: rgba(0, 113, 227, .06); box-shadow: 0 4px 16px rgba(0, 113, 227, .14); }
-  .item:hover::before { opacity: .35; }
-  .item.active { background: var(--surface); box-shadow: var(--shadow-2); }
-  .item.active::before { opacity: 1; top: 10%; bottom: 10%; }
+  /* Active/hover accent used to be a straight ::before bar pinned near the
+     left edge — but .item is a full pill (border-radius: 999px), so its
+     left edge is a semicircle, not a vertical line, and the straight bar
+     poked outside that curve at top and bottom. An inset box-shadow is
+     clipped to the element's own border-radius automatically, so it tapers
+     with the pill shape instead of floating outside it. */
+  .item:hover { background: rgba(0, 113, 227, .06); box-shadow: 0 4px 16px rgba(0, 113, 227, .14), inset 3px 0 0 0 rgba(0, 113, 227, .35); }
+  .item.active { background: var(--surface); box-shadow: var(--shadow-2), inset 3px 0 0 0 var(--blue); }
   .item .av {
     flex: none; width: 40px; height: 40px; border-radius: 50%;
     display: grid; place-items: center; font-weight: 600; font-size: .88rem; color: #fff;
@@ -586,6 +584,11 @@
           Topics to specifically ask about (optional)
           <textarea name="topics" rows="2" placeholder="Comma-separated, e.g. agent orchestration, tool calling, evaluation, memory systems. Leave blank and the interviewer will derive topics entirely from the JD instead."></textarea>
         </label>
+        <label class="dropzone" id="schedule-app-docs-drop">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/><path d="M8 13h8M8 17h5"/></svg>
+          <span data-empty="Additional documents — team notes, rubric (optional)">Additional documents — team notes, rubric (optional)</span>
+          <input type="file" name="docs" accept=".pdf,.docx,.txt,.md" multiple>
+        </label>
         <div class="field">
           <span>Response engine</span>
           <div class="segmented" role="radiogroup" aria-label="Response engine">
@@ -690,7 +693,7 @@
 
 <div id="toast-stack" aria-live="polite"></div>
 
-<script src="/static/ops.js?v=22"></script>
+<script src="/static/ops.js?v=23"></script>
 <script src="/static/fx.js?v=11"></script>
 </body>
 </html>

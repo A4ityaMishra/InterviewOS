@@ -33,15 +33,15 @@ form.addEventListener("submit", async (e) => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        username: fd.get("username"),
+        email: fd.get("email"),
         password: fd.get("password"),
       }),
     });
     if (!resp.ok) {
       const body = await resp.json().catch(() => ({}));
-      setError(body.detail || "Invalid username or password.");
+      setError(body.detail || "Invalid email or password.");
       resetSubmit();
-      form.username.focus();
+      form.email.focus();
       return;
     }
     const data = await resp.json();

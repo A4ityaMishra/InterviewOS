@@ -267,7 +267,7 @@ const linkResult = document.getElementById("link-result");
 const linkInput = document.getElementById("link-input");
 const copyBtn = document.getElementById("copy-btn");
 
-for (const zoneId of ["jd-drop", "resume-drop", "docs-drop"]) {
+for (const zoneId of ["jd-drop", "resume-drop", "docs-drop", "schedule-app-docs-drop"]) {
   const zone = document.getElementById(zoneId);
   const input = zone.querySelector("input");
   const label = zone.querySelector("span");
@@ -507,6 +507,10 @@ function pickApplication(app, posting) {
   scheduleForm.duration_min.value = (posting && posting.duration_min) || 20;
   scheduleForm.topics.value = (posting && posting.topics) || "";
   scheduleSub.textContent = `${app.applicant_name} — ${posting ? posting.role : "Unknown role"}`;
+  // form.reset() clears the file input's value, but not the dropzone label
+  // text we set manually on "change" — reset it back to its default too
+  const docsLabel = document.querySelector("#schedule-app-docs-drop span");
+  docsLabel.textContent = docsLabel.dataset.empty;
 }
 
 document.getElementById("schedule-app-btn").onclick = openScheduleModal;

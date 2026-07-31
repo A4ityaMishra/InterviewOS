@@ -108,20 +108,24 @@
       </div>
 
       <div id="accounts"></div>
+
+      <div class="wrap-header" id="invites-header" hidden style="margin-top:36px; margin-bottom:14px;">
+        <div>
+          <h1 style="font-size:1.15rem;">Pending invites</h1>
+        </div>
+      </div>
+      <div id="invites"></div>
     </div>
   </main>
 
   <div class="modal-scrim" id="modal-scrim" hidden>
     <div class="modal" id="modal-create">
       <form id="new-form">
-        <h3>Add a teammate</h3>
-        <div class="sub">They'll get a one-time password to sign in with — share it with them directly.</div>
+        <h3>Invite a teammate</h3>
+        <div class="sub">They'll get a link to set their own password and join.</div>
         <div style="display:flex; flex-direction:column; gap:16px;">
-          <label class="field">Full name
-            <input type="text" name="name" placeholder="Jane Doe" autocomplete="off" required>
-          </label>
-          <label class="field">Username
-            <input type="text" name="username" placeholder="jane" autocomplete="off" required>
+          <label class="field">Email
+            <input type="email" name="email" placeholder="jane@company.com" autocomplete="off" required>
           </label>
           <label class="field">Team
             <select name="team">
@@ -138,19 +142,16 @@
         <div class="err" id="create-err" role="alert" hidden style="color:var(--red-deep); font-size:.86rem; margin-top:14px;"></div>
         <div class="actions">
           <button type="button" class="btn-secondary" id="modal-cancel">Cancel</button>
-          <button type="submit" class="btn-primary" id="modal-submit">Create account</button>
+          <button type="submit" class="btn-primary" id="modal-submit">Send invite</button>
         </div>
       </form>
 
       <div class="link-result" id="create-result" hidden>
         <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>
-        <h3>Account created</h3>
-        <div class="sub">Send these credentials to <span id="cr-name"></span> — the password is shown once and can't be recovered later.</div>
+        <h3>Invite created</h3>
+        <div class="sub">Send this link to <span id="cr-email-label"></span> — it expires in 7 days and can only be used once.</div>
         <div class="link-row">
-          <input type="text" id="cr-username" readonly>
-        </div>
-        <div class="link-row">
-          <input type="text" id="cr-password" readonly>
+          <input type="text" id="cr-invite-url" readonly>
           <button type="button" id="cr-copy">Copy</button>
         </div>
         <button type="button" class="btn-primary" id="create-done" style="width:100%;">Done</button>
@@ -201,7 +202,7 @@
 
   <div id="toast-stack" aria-live="polite"></div>
 
-  <script src="/static/team.js?v=4"></script>
+  <script src="/static/team.js?v=6"></script>
   <script src="/static/fx.js?v=11"></script>
 </body>
 </html>

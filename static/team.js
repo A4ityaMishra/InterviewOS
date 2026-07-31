@@ -111,7 +111,7 @@ function renderAccounts(accounts) {
     return;
   }
   accounts.forEach((a, i) => {
-    const isSelf = me && a.username === me.username;
+    const isSelf = me && a.user_id === me.user_id;
     const row = document.createElement("div");
     row.className = "row";
     row.style.animationDelay = `${Math.min(i, 8) * 0.04}s`;
@@ -123,7 +123,7 @@ function renderAccounts(accounts) {
           ${a.is_admin ? '<span class="tag admin">Admin</span>' : ""}
           ${isSelf ? '<span class="tag you">You</span>' : ""}
         </div>
-        <div class="meta">@${a.username} · ${a.team} · joined ${fmtTime(a.created_at)}</div>
+        <div class="meta">${a.email} · ${a.team} · joined ${fmtTime(a.created_at)}</div>
       </div>
       <div class="actions-row">
         <button class="icon-btn" title="Reset password" data-action="reset">
@@ -145,7 +145,7 @@ function renderAccounts(accounts) {
 
 async function resetPassword(account) {
   if (!confirm(`Reset the password for ${account.name}? Their current password will stop working immediately.`)) return;
-  const resp = await fetch(`/api/accounts/${account.username}/reset-password`, { method: "POST" });
+  const resp = await fetch(`/api/accounts/${account.user_id}/reset-password`, { method: "POST" });
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({}));
     showToast(body.detail || "Could not reset password.");
@@ -162,7 +162,7 @@ async function resetPassword(account) {
 
 async function removeAccount(account) {
   if (!confirm(`Remove ${account.name}'s account? They'll no longer be able to sign in.`)) return;
-  const resp = await fetch(`/api/accounts/${account.username}`, { method: "DELETE" });
+  const resp = await fetch(`/api/accounts/${account.user_id}`, { method: "DELETE" });
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({}));
     showToast(body.detail || "Could not remove that account.");
@@ -191,35 +191,31 @@ function closeModal() { scrim.hidden = true; }
 document.getElementById("new-btn").onclick = openModal;
 document.getElementById("modal-cancel").onclick = closeModal;
 scrim.onclick = (e) => { if (e.target === scrim) closeModal(); };
-document.getElementById("create-done").onclick = () => { closeModal(); loadAccounts(); };
-
 newForm.onsubmit = async (e) => {
   e.preventDefault();
   createErr.hidden = true;
   modalSubmit.disabled = true;
-  modalSubmit.textContent = "Creating…";
+  modalSubmit.textContent = "Sending…";
   const fd = new FormData(newForm);
   try {
-    const resp = await fetch("/api/accounts", {
+    const resp = await fetch("/api/accounts/invite", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name: fd.get("name"),
-        username: fd.get("username"),
+        email: fd.get("email"),
         team: fd.get("team"),
         is_admin: fd.get("is_admin") === "on",
       }),
     });
     if (!resp.ok) {
       const body = await resp.json().catch(() => ({}));
-      createErr.textContent = body.detail || "Could not create that account.";
+      createErr.textContent = body.detail || "Could not create that invite.";
       createErr.hidden = false;
       return;
     }
     const data = await resp.json();
-    document.getElementById("cr-name").textContent = fd.get("name");
-    document.getElementById("cr-username").value = data.username;
-    document.getElementById("cr-password").value = data.password;
+    document.getElementById("cr-email-label").textContent = data.email;
+    document.getElementById("cr-invite-url").value = data.invite_url;
     const copyBtn = document.getElementById("cr-copy");
     copyBtn.textContent = "Copy";
     copyBtn.classList.remove("copied");
@@ -227,7 +223,7 @@ newForm.onsubmit = async (e) => {
     createResult.hidden = false;
   } finally {
     modalSubmit.disabled = false;
-    modalSubmit.textContent = "Create account";
+    modalSubmit.textContent = "Send invite";
   }
 };
 
@@ -242,7 +238,7 @@ async function copyToClipboard(inputEl, btnEl) {
   btnEl.classList.add("copied");
 }
 document.getElementById("cr-copy").onclick = () =>
-  copyToClipboard(document.getElementById("cr-password"), document.getElementById("cr-copy"));
+  copyToClipboard(document.getElementById("cr-invite-url"), document.getElementById("cr-copy"));
 document.getElementById("rs-copy").onclick = () =>
   copyToClipboard(document.getElementById("rs-password"), document.getElementById("rs-copy"));
 
@@ -251,4 +247,51 @@ document.getElementById("reset-scrim").onclick = (e) => {
   if (e.target === document.getElementById("reset-scrim")) e.currentTarget.hidden = true;
 };
 
-loadMe().then(loadAccounts);
+// ---------- pending invites ----------
+const invitesEl = document.getElementById("invites");
+const invitesHeader = document.getElementById("invites-header");
+
+async function loadInvites() {
+  const resp = await fetch("/api/accounts/invites");
+  if (!resp.ok) return;
+  const invites = await resp.json();
+  invitesHeader.hidden = invites.length === 0;
+  invitesEl.innerHTML = "";
+  invites.forEach((inv, i) => {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.style.animationDelay = `${Math.min(i, 8) * 0.04}s`;
+    row.innerHTML = `
+      <div class="av"></div>
+      <div class="info">
+        <div class="name"><span class="name-text"></span><span class="tag you">Pending</span></div>
+        <div class="meta">${inv.team} · invited ${fmtTime(inv.created_at)}</div>
+      </div>
+      <div class="actions-row">
+        <button class="icon-btn danger" title="Revoke invite" data-action="revoke">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        </button>
+      </div>`;
+    row.querySelector(".av").style = avStyle(inv.email);
+    row.querySelector(".av").textContent = initials(inv.email);
+    row.querySelector(".name-text").textContent = inv.email;
+    row.querySelector('[data-action="revoke"]').onclick = () => revokeInvite(inv);
+    invitesEl.appendChild(row);
+  });
+}
+
+async function revokeInvite(invite) {
+  if (!confirm(`Revoke the invite for ${invite.email}?`)) return;
+  const resp = await fetch(`/api/accounts/invites/${invite.id}`, { method: "DELETE" });
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    showToast(body.detail || "Could not revoke that invite.");
+    return;
+  }
+  showToast(`Invite for ${invite.email} revoked.`, "success");
+  loadInvites();
+}
+
+document.getElementById("create-done").onclick = () => { closeModal(); loadAccounts(); loadInvites(); };
+
+loadMe().then(() => { loadAccounts(); loadInvites(); });

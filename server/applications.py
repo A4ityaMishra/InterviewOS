@@ -1,28 +1,51 @@
-"""Candidate application persistence: one JSON file per application under
-data/applications/. Same pattern as server/store.py. Upstream of the
-interview record an approved application eventually turns into.
+"""Candidate application persistence — Postgres via server/db.py (see
+db/schema.sql). Upstream of the interview record an approved application
+eventually turns into.
 """
 
-import json
-import time
-import uuid
-from pathlib import Path
-
-DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "applications"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+from . import candidates, db
 
 # sentinel job_id for speculative applications submitted via /apply/general —
 # not backed by a posting record, so there's no JD to prefill an interview
-# from; approved general applications are scheduled manually via /ops like
-# any other candidate sourced outside the posting flow
+# from. Stored as NULL in applications.job_id; translated at this module's
+# boundary so callers never see the NULL/sentinel distinction.
 GENERAL_JOB_ID = "general"
 
+_SELECT = """
+    select a.id, a.job_id, a.candidate_id, c.name as applicant_name, c.email as applicant_email,
+           c.phone as applicant_phone, a.resume_filename, a.resume_text, a.cover_note,
+           a.status, a.created_at, a.reviewed_at, a.reviewed_by, sp.name as reviewed_by_name,
+           a.rejection_reason, p.role as posting_role,
+           (select i.id from interviews i where i.application_id = a.id limit 1) as session_id
+    from applications a
+    join candidates c on c.id = a.candidate_id
+    left join staff_profiles sp on sp.user_id = a.reviewed_by
+    left join postings p on p.id = a.job_id
+"""
 
-def _path(application_id: str) -> Path:
-    return DATA_DIR / f"{application_id}.json"
+
+def _row_to_dict(row) -> dict:
+    return {
+        "id": str(row["id"]),
+        "job_id": row["job_id"] or GENERAL_JOB_ID,
+        "role": row["posting_role"] or "General application",
+        "applicant_name": row["applicant_name"],
+        "applicant_email": row["applicant_email"],
+        "applicant_phone": row["applicant_phone"],
+        "resume_filename": row["resume_filename"],
+        "resume_text": row["resume_text"],
+        "cover_note": row["cover_note"],
+        "status": row["status"],
+        "created_at": row["created_at"].timestamp(),
+        "reviewed_at": row["reviewed_at"].timestamp() if row["reviewed_at"] else None,
+        "reviewed_by": str(row["reviewed_by"]) if row["reviewed_by"] else None,
+        "reviewed_by_name": row["reviewed_by_name"],
+        "rejection_reason": row["rejection_reason"] or None,
+        "session_id": str(row["session_id"]) if row["session_id"] else None,
+    }
 
 
-def create(
+async def create(
     job_id: str,
     applicant_name: str,
     applicant_email: str,
@@ -31,61 +54,41 @@ def create(
     applicant_phone: str = "",
     cover_note: str = "",
 ) -> dict:
-    application_id = uuid.uuid4().hex
-    data = {
-        "id": application_id,
-        "job_id": job_id,
-        "applicant_name": applicant_name,
-        "applicant_email": applicant_email,
-        "applicant_phone": applicant_phone,
-        "resume_filename": resume_filename,
-        "resume_text": resume_text,
-        "cover_note": cover_note,
-        "status": "pending",  # pending | approved | rejected
-        "created_at": time.time(),
-        "reviewed_at": None,
-        "reviewed_by": None,
-        "rejection_reason": None,
-        "session_id": None,  # set once ops schedules an interview from this application
-    }
-    _write(application_id, data)
-    return data
+    candidate = await candidates.upsert(applicant_email, applicant_name, applicant_phone)
+    stored_job_id = None if job_id in (GENERAL_JOB_ID, "") else job_id
+    application_id = await db.fetchval(
+        """insert into applications
+           (job_id, candidate_id, resume_filename, resume_text, cover_note, status)
+           values ($1, $2, $3, $4, $5, 'pending') returning id""",
+        stored_job_id, candidate["id"], resume_filename, resume_text, cover_note,
+    )
+    return await get(str(application_id))
 
 
-def set_status(application_id: str, status: str, reviewed_by: str, rejection_reason: str = "") -> dict | None:
-    data = get(application_id)
-    if data is None:
+async def set_status(application_id: str, status: str, reviewed_by: str, rejection_reason: str = "") -> dict | None:
+    if await get(application_id) is None:
         return None
-    data["status"] = status
-    data["reviewed_by"] = reviewed_by
-    data["reviewed_at"] = time.time()
-    if status == "rejected":
-        data["rejection_reason"] = rejection_reason or None
-    _write(application_id, data)
-    return data
+    await db.execute(
+        """update applications set status = $2, reviewed_by = $3, reviewed_at = now(),
+             rejection_reason = case when $2 = 'rejected' then $4 else rejection_reason end
+           where id = $1""",
+        application_id, status, reviewed_by, rejection_reason or None,
+    )
+    return await get(application_id)
 
 
-def set_session_id(application_id: str, session_id: str) -> dict | None:
-    data = get(application_id)
-    if data is None:
-        return None
-    data["session_id"] = session_id
-    _write(application_id, data)
-    return data
+async def get(application_id: str) -> dict | None:
+    row = await db.fetchrow(_SELECT + " where a.id = $1", application_id)
+    return _row_to_dict(row) if row else None
 
 
-def get(application_id: str) -> dict | None:
-    p = _path(application_id)
-    if not p.exists():
-        return None
-    return json.loads(p.read_text())
+async def list_all() -> list[dict]:
+    rows = await db.fetch(_SELECT + " order by a.created_at desc")
+    return [_row_to_dict(r) for r in rows]
 
 
-def list_all() -> list[dict]:
-    items = [json.loads(p.read_text()) for p in DATA_DIR.glob("*.json")]
-    items.sort(key=lambda x: x["created_at"], reverse=True)
-    return items
-
-
-def _write(application_id: str, data: dict):
-    _path(application_id).write_text(json.dumps(data, ensure_ascii=False, indent=1))
+async def list_for_candidate(candidate_id: str) -> list[dict]:
+    rows = await db.fetch(
+        _SELECT + " where a.candidate_id = $1 order by a.created_at desc", candidate_id
+    )
+    return [_row_to_dict(r) for r in rows]
