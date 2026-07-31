@@ -11,6 +11,8 @@ import time
 import uuid
 from pathlib import Path
 
+from . import config
+
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "postings"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -30,15 +32,16 @@ def _make_id(role: str) -> str:
     return f"{slug}-{uuid.uuid4().hex[:12]}"
 
 
-def request(role: str, notes: str, created_by: str, duration_min: int = 0) -> dict:
-    """Ops asks HR to post a role — no JD yet, just role + why."""
+def request(role: str, notes: str, created_by: str) -> dict:
+    """Ops asks HR to post a role — no JD yet, just role + why. Duration is
+    ops's call at scheduling time, not something to decide this early."""
     posting_id = _make_id(role)
     data = {
         "id": posting_id,
         "role": role,
         "jd_text": "",
         "topics": "",
-        "duration_min": duration_min,
+        "duration_min": config.INTERVIEW_DURATION_MIN,
         "status": "requested",  # requested | open | closed
         "created_by": created_by,
         "notes": notes,

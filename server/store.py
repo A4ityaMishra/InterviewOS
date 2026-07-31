@@ -24,12 +24,14 @@ def create(
     jd_text: str = "",
     topics: str = "",
     provider: str = "pipeline",
+    application_id: str | None = None,
 ):
     _write(
         interview_id,
         {
             "id": interview_id,
             "job_id": job_id,  # shared across sessions created from the same JD
+            "application_id": application_id,  # set only when scheduled from an approved application
             "role": role,
             "duration_min": duration_min,
             "jd_present": jd_present,
@@ -100,6 +102,7 @@ def list_all() -> list[dict]:
             {
                 "id": d["id"],
                 "job_id": d.get("job_id", d["id"]),
+                "application_id": d.get("application_id"),
                 "role": d["role"],
                 "created_at": d["created_at"],
                 "status": d["status"],

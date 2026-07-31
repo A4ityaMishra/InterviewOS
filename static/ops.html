@@ -27,7 +27,51 @@
     padding: 22px 0 0;
   }
 
-  .stats { margin: 0 22px 18px; }
+  /* ---------- status filter ----------
+     Replaces the old fixed 3-column stats box (Total/Live/Done), which had
+     no room for "created" (not yet started) or "disconnected" (ended
+     abnormally) — those sessions existed in the data but were invisible as
+     a filter. "All" is its own full-width summary bar (it's an aggregate,
+     not a peer of the other four); the four real statuses sit in a fixed
+     2x2 grid below so the layout never wraps unevenly regardless of label
+     length. Each status gets its own tinted active color (matching the
+     existing badge palette) instead of one generic blue for everything, so
+     which filter is active reads at a glance instead of needing to check
+     for a highlight. */
+  .status-filter { margin: 0 22px 18px; display: flex; flex-direction: column; gap: 8px; animation: step-in .4s var(--ease) backwards; }
+  .status-all {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--surface); border: 0; border-radius: var(--radius-sm);
+    padding: 13px 16px; font: inherit; color: var(--text); cursor: pointer;
+    box-shadow: var(--shadow-1);
+    transition: background .18s var(--ease), box-shadow .2s var(--ease), transform .15s var(--ease);
+  }
+  .status-all:hover { box-shadow: 0 3px 10px rgba(0, 113, 227, .1), 0 8px 22px rgba(0, 113, 227, .14); transform: translateY(-1px); }
+  .status-all .chip-label { font-size: .84rem; font-weight: 600; color: var(--text-2); }
+  .status-all b { font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .status-all.active { background: rgba(0, 113, 227, .08); box-shadow: inset 0 0 0 1.5px var(--blue); }
+  .status-all.active .chip-label, .status-all.active b { color: var(--blue); }
+
+  .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .status-chip {
+    display: flex; align-items: center; gap: 7px; min-width: 0;
+    background: var(--fill); border: 0; border-radius: var(--radius-sm);
+    padding: 10px 12px; font: inherit; color: var(--text-2); cursor: pointer; text-align: left;
+    transition: background .18s var(--ease), box-shadow .18s var(--ease), transform .15s var(--ease);
+  }
+  .status-chip:hover { background: var(--fill-2); transform: translateY(-1px); }
+  .status-chip .chip-label { flex: 1; min-width: 0; font-size: .78rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .status-chip b { flex: none; font-size: .92rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-3); }
+  .status-chip.active b { color: inherit; }
+  .status-chip[data-filter="created"].active { background: var(--fill-2); color: var(--text); box-shadow: inset 0 0 0 1.5px var(--text-3); }
+  .status-chip[data-filter="live"].active { background: rgba(52, 199, 89, .12); color: var(--green-deep); box-shadow: inset 0 0 0 1.5px var(--green-deep); }
+  .status-chip[data-filter="completed"].active { background: var(--blue-soft); color: var(--blue); box-shadow: inset 0 0 0 1.5px var(--blue); }
+  .status-chip[data-filter="disconnected"].active { background: rgba(255, 149, 0, .12); color: var(--orange-deep); box-shadow: inset 0 0 0 1.5px var(--orange-deep); }
+  .chip-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; }
+  .chip-dot.created { background: var(--text-3); }
+  .chip-dot.live { background: var(--green-deep); animation: live-breathe 1.6s ease-in-out infinite; }
+  .chip-dot.completed { background: var(--blue); }
+  .chip-dot.disconnected { background: var(--orange-deep); }
 
   .search { padding: 0 22px 12px; }
   .search input {
@@ -87,6 +131,10 @@
   }
   .item .info { min-width: 0; flex: 1; }
   .item .role { font-weight: 600; font-size: .9rem; letter-spacing: -.012em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* shown only when .role is the applicant's name (session came from an
+     approved application) — the role text moves down here instead of being
+     lost, so ops still sees which posting it's for at a glance */
+  .item .applicant-role { font-size: .78rem; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
   .item .meta {
     font-size: .76rem; color: var(--text-3); display: flex; gap: 7px; font-variant-numeric: tabular-nums; margin-top: 1px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -153,7 +201,39 @@
   .placeholder { margin: auto; color: var(--text-3); text-align: center; animation: step-in .4s var(--ease); }
   .placeholder svg { color: #d1d1d6; margin-bottom: 12px; animation: pop-in .6s var(--ease); }
 
-  .new-btn { margin: 0 22px 16px; }
+  .new-btn { margin: 0 22px 10px; }
+
+  .app-cta {
+    margin: 0 22px 8px; display: flex; align-items: center; gap: 12px;
+    background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius-sm);
+    padding: 11px 14px; cursor: pointer; text-align: left; width: calc(100% - 44px);
+    transition: background .18s var(--ease), transform .18s var(--ease), box-shadow .2s var(--ease), border-color .18s var(--ease);
+  }
+  .app-cta:hover {
+    background: var(--blue-soft); border-color: rgba(0, 113, 227, .25);
+    transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0, 113, 227, .14);
+  }
+  .app-cta-icon {
+    flex: none; width: 34px; height: 34px; border-radius: 50%;
+    display: grid; place-items: center; background: var(--blue-soft); color: var(--blue);
+  }
+  .app-cta-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .app-cta-text b { font-size: .86rem; font-weight: 600; color: var(--text); }
+  .app-cta-text small { font-size: .74rem; color: var(--text-3); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .app-cta-badge {
+    flex: none; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+    background: var(--blue); color: #fff; font-size: .72rem; font-weight: 700;
+    display: grid; place-items: center; animation: pop-in .3s var(--ease);
+  }
+
+  .request-posting-link {
+    margin: 0 22px 16px; display: flex; align-items: center; gap: 6px; justify-content: center;
+    background: none; border: 0; color: var(--text-3); font-size: .8rem; font-weight: 500;
+    padding: 7px; border-radius: var(--radius-sm); cursor: pointer; width: calc(100% - 44px);
+    transition: color .18s var(--ease), background .18s var(--ease);
+  }
+  .request-posting-link:hover { color: var(--text-2); background: var(--fill-2); }
+  .request-posting-link svg { flex: none; }
 
   .modal-step { display: flex; flex-direction: column; gap: 16px; }
   .modal .row { display: grid; grid-template-columns: 1fr 120px; gap: 14px; }
@@ -249,10 +329,24 @@
 
   <div class="shell" id="shell">
     <aside>
-      <div class="stats" id="stats" role="radiogroup" aria-label="Status filter">
-        <button type="button" class="stat active" data-filter="all" role="radio" aria-checked="true"><b id="st-total">–</b><span>Total</span></button>
-        <button type="button" class="stat live-stat" data-filter="live" role="radio" aria-checked="false"><b id="st-live">–</b><span>Live</span></button>
-        <button type="button" class="stat done-stat" data-filter="completed" role="radio" aria-checked="false"><b id="st-done">–</b><span>Done</span></button>
+      <div class="status-filter" id="stats" role="radiogroup" aria-label="Status filter">
+        <button type="button" class="status-all active" data-filter="all" role="radio" aria-checked="true">
+          <span class="chip-label">All interviews</span><b id="st-total">–</b>
+        </button>
+        <div class="status-grid">
+          <button type="button" class="status-chip" data-filter="created" role="radio" aria-checked="false">
+            <span class="chip-dot created"></span><span class="chip-label">Created</span><b id="st-created">–</b>
+          </button>
+          <button type="button" class="status-chip" data-filter="live" role="radio" aria-checked="false">
+            <span class="chip-dot live"></span><span class="chip-label">Live</span><b id="st-live">–</b>
+          </button>
+          <button type="button" class="status-chip" data-filter="completed" role="radio" aria-checked="false">
+            <span class="chip-dot completed"></span><span class="chip-label">Completed</span><b id="st-done">–</b>
+          </button>
+          <button type="button" class="status-chip" data-filter="disconnected" role="radio" aria-checked="false">
+            <span class="chip-dot disconnected"></span><span class="chip-label">Disconnected</span><b id="st-disconnected">–</b>
+          </button>
+        </div>
       </div>
 
       <button class="new-btn" id="new-btn" type="button">
@@ -260,10 +354,21 @@
         New interview
       </button>
 
-      <div style="display:flex; gap:8px; margin:0 22px 16px;">
-        <button class="btn-secondary" id="request-posting-btn" type="button" style="flex:1; padding:9px 12px; font-size:.8rem; min-height:auto;">Request posting</button>
-        <button class="btn-secondary" id="schedule-app-btn" type="button" style="flex:1; padding:9px 12px; font-size:.8rem; min-height:auto;">From application</button>
-      </div>
+      <button class="app-cta" id="schedule-app-btn" type="button">
+        <span class="app-cta-icon">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 8l-3 3-1.5-1.5"/></svg>
+        </span>
+        <span class="app-cta-text">
+          <b>Schedule from application</b>
+          <small>Prefills role, JD &amp; resume from an approved candidate</small>
+        </span>
+        <span class="app-cta-badge" id="schedule-app-badge" hidden>0</span>
+      </button>
+
+      <button class="request-posting-link" id="request-posting-btn" type="button">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        Request a posting from HR
+      </button>
 
       <div class="search">
         <input id="filter" type="search" placeholder="Search by role or ID" autocomplete="off">
@@ -440,12 +545,6 @@
           <label class="field">Role title
             <input type="text" name="role" placeholder="e.g. Backend Software Engineer" autocomplete="off" required>
           </label>
-          <label class="field">Duration
-            <div class="input-suffix">
-              <input type="number" name="duration_min" value="20" min="5" max="60">
-              <span>min</span>
-            </div>
-          </label>
           <label class="field">Notes for HR (optional)
             <textarea name="notes" rows="3" placeholder="Headcount context, must-have skills, timeline…"></textarea>
           </label>
@@ -557,6 +656,23 @@
         <div class="review-row"><span class="k">Turns</span><span class="v" id="dt-turns">—</span></div>
         <div class="review-row"><span class="k">Topics</span><span class="v" id="dt-topics">—</span></div>
       </div>
+      <div id="dt-applicant-section" hidden>
+        <div class="sub" style="margin-bottom:8px;">Applicant</div>
+        <div class="review-list">
+          <div class="review-row"><span class="k">Name</span><span class="v" id="dt-applicant-name">—</span></div>
+          <div class="review-row"><span class="k">Email</span><span class="v" id="dt-applicant-email">—</span></div>
+        </div>
+        <div class="sub" style="margin-bottom:8px;">Resume</div>
+        <div class="jd-viewer" id="dt-resume">—</div>
+        <div style="font-size:.76rem; color:var(--text-3); margin:-12px 0 20px;">Future: link out to this candidate's full profile once the candidate portal ships.</div>
+      </div>
+      <div id="dt-link-section" hidden>
+        <div class="sub" style="margin-bottom:8px;">Interview link — not yet started</div>
+        <div class="link-row" style="margin-bottom:20px;">
+          <input type="text" id="dt-link-input" readonly>
+          <button type="button" id="dt-link-copy-btn">Copy</button>
+        </div>
+      </div>
       <div class="sub" id="dt-cost-heading" style="margin-bottom:8px;" hidden>Estimated cost</div>
       <div class="review-list" id="dt-cost-list" hidden>
         <div class="review-row"><span class="k">LLM</span><span class="v" id="dt-cost-llm">—</span></div>
@@ -574,7 +690,7 @@
 
 <div id="toast-stack" aria-live="polite"></div>
 
-<script src="/static/ops.js?v=18"></script>
+<script src="/static/ops.js?v=22"></script>
 <script src="/static/fx.js?v=11"></script>
 </body>
 </html>

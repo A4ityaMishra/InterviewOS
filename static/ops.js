@@ -9,8 +9,10 @@ const backBtn = document.getElementById("back");
 const filterEl = document.getElementById("filter");
 const viewAv = document.getElementById("view-av");
 const stTotal = document.getElementById("st-total");
+const stCreated = document.getElementById("st-created");
 const stLive = document.getElementById("st-live");
 const stDone = document.getElementById("st-done");
+const stDisconnected = document.getElementById("st-disconnected");
 
 let selectedId = null;
 let allSessions = [];
@@ -20,14 +22,14 @@ const prevMessageCounts = new Map();
 let renderedForId = null;
 let renderedMessageCount = 0;
 
-let statusFilter = "all"; // all | live | completed
+let statusFilter = "all"; // all | created | live | completed | disconnected
 let timeFilter = "all"; // all | 24h | 7d | 30d
 let sortOrder = "newest"; // newest | oldest
 const TIME_FILTER_MS = { "24h": 864e5, "7d": 7 * 864e5, "30d": 30 * 864e5 };
 
 const timeFilterEl = document.getElementById("time-filter");
 const sortOrderEl = document.getElementById("sort-order");
-const statTiles = document.querySelectorAll(".stats .stat[data-filter]");
+const statTiles = document.querySelectorAll(".status-filter [data-filter]");
 statTiles.forEach((el) => {
   el.addEventListener("click", () => {
     statusFilter = el.dataset.filter;
@@ -94,8 +96,10 @@ async function loadSessions() {
   if (resp.status === 401) { window.location.href = "/login"; return; }
   allSessions = await resp.json();
   animateCount(stTotal, allSessions.length);
+  animateCount(stCreated, allSessions.filter(s => s.status === "created").length);
   animateCount(stLive, allSessions.filter(s => s.status === "live").length);
   animateCount(stDone, allSessions.filter(s => s.status === "completed").length);
+  animateCount(stDisconnected, allSessions.filter(s => s.status === "disconnected").length);
   renderSessions();
 }
 
@@ -126,13 +130,16 @@ function renderSessions() {
     const justGotNewMessage = hasRenderedOnce && s.status === "live" && prevCount !== undefined && s.message_count > prevCount;
     prevMessageCounts.set(s.id, s.message_count);
 
+    const primaryLabel = s.applicant_name || s.role;
+
     const btn = document.createElement("button");
     btn.className = `item${s.id === selectedId ? " active" : ""}${hasRenderedOnce ? "" : " entering"}${justGotNewMessage ? " flash" : ""}`;
     if (!hasRenderedOnce) btn.style.animationDelay = `${Math.min(i, 10) * 0.03}s`;
     btn.innerHTML = `
-      <div class="av" style="${avStyle(s.role)}"></div>
+      <div class="av" style="${avStyle(primaryLabel)}"></div>
       <div class="info">
         <div class="role"></div>
+        ${s.applicant_name ? `<div class="applicant-role"></div>` : ""}
         <div class="meta">
           <span>${fmtTime(s.created_at)}</span>
           <span>·</span>
@@ -144,8 +151,9 @@ function renderSessions() {
         </div>
       </div>
       <span class="badge ${s.status}">${s.status}</span>`;
-    btn.querySelector(".av").textContent = initials(s.role);
-    btn.querySelector(".role").textContent = s.role;
+    btn.querySelector(".av").textContent = initials(primaryLabel);
+    btn.querySelector(".role").textContent = primaryLabel;
+    if (s.applicant_name) btn.querySelector(".applicant-role").textContent = s.role;
     btn.onclick = () => select(s.id);
     sessionsEl.appendChild(btn);
   });
@@ -507,7 +515,7 @@ document.getElementById("schedule-app-back").onclick = () => {
   scheduleForm.hidden = true;
 };
 scheduleScrim.addEventListener("click", (e) => { if (e.target === scheduleScrim) scheduleScrim.hidden = true; });
-document.getElementById("schedule-app-done").onclick = () => { scheduleScrim.hidden = true; loadSessions(); };
+document.getElementById("schedule-app-done").onclick = () => { scheduleScrim.hidden = true; loadSessions(); loadScheduleAppBadge(); };
 
 scheduleForm.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -569,6 +577,16 @@ titleBtn.onclick = () => {
   if (endTs) { actualEl.textContent = fmtDuration(endTs - d.created_at); actualEl.classList.remove("muted"); }
   else { actualEl.textContent = d.status === "live" ? "In progress" : "—"; actualEl.classList.add("muted"); }
 
+  const applicantSection = document.getElementById("dt-applicant-section");
+  if (d.applicant_name) {
+    document.getElementById("dt-applicant-name").textContent = d.applicant_name;
+    document.getElementById("dt-applicant-email").textContent = d.applicant_email;
+    document.getElementById("dt-resume").textContent = d.resume_text && d.resume_text.trim() ? d.resume_text : "No resume on file.";
+    applicantSection.hidden = false;
+  } else {
+    applicantSection.hidden = true;
+  }
+
   document.getElementById("dt-turns").textContent = d.messages.length;
   document.getElementById("dt-topics").textContent = d.topics && d.topics.trim() ? d.topics : "Account default";
 
@@ -593,8 +611,32 @@ titleBtn.onclick = () => {
   const jdEl = document.getElementById("dt-jd");
   jdEl.textContent = d.jd_text && d.jd_text.trim() ? d.jd_text : "No job description was provided for this interview.";
 
+  const linkSection = document.getElementById("dt-link-section");
+  const linkInputEl = document.getElementById("dt-link-input");
+  if (d.status === "created") {
+    linkInputEl.value = `${location.origin}/interview/${d.id}`;
+    linkSection.hidden = false;
+  } else {
+    linkSection.hidden = true;
+  }
+
   detailScrim.hidden = false;
 };
+
+document.getElementById("dt-link-copy-btn").onclick = async (e) => {
+  const btn = e.currentTarget;
+  const input = document.getElementById("dt-link-input");
+  input.select();
+  try {
+    await navigator.clipboard.writeText(input.value);
+  } catch {
+    document.execCommand("copy");
+  }
+  btn.textContent = "Copied";
+  btn.classList.add("copied");
+  setTimeout(() => { btn.textContent = "Copy"; btn.classList.remove("copied"); }, 1500);
+};
+
 document.getElementById("detail-close").onclick = () => { detailScrim.hidden = true; };
 detailScrim.addEventListener("click", (e) => { if (e.target === detailScrim) detailScrim.hidden = true; });
 
@@ -666,6 +708,29 @@ pwForm.addEventListener("submit", async (e) => {
   }
 });
 
+// ---------- "schedule from application" badge ----------
+// same eligibility rule as openScheduleModal's `ready` filter — approved,
+// not yet scheduled, and tied to a real posting (general applications have
+// no JD to prefill from, so they don't count here either)
+const scheduleAppBadge = document.getElementById("schedule-app-badge");
+async function loadScheduleAppBadge() {
+  try {
+    const resp = await fetch("/api/applications");
+    if (!resp.ok) return;
+    const apps = await resp.json();
+    const count = apps.filter(a => a.status === "approved" && !a.session_id && a.job_id !== "general").length;
+    if (count > 0) {
+      scheduleAppBadge.textContent = count > 99 ? "99+" : String(count);
+      scheduleAppBadge.hidden = false;
+    } else {
+      scheduleAppBadge.hidden = true;
+    }
+  } catch {
+    /* leave the badge as-is on a transient fetch failure */
+  }
+}
+
 loadMe();
 loadSessions();
-setInterval(() => { loadSessions(); loadTranscript(); }, 4000);
+loadScheduleAppBadge();
+setInterval(() => { loadSessions(); loadTranscript(); loadScheduleAppBadge(); }, 4000);

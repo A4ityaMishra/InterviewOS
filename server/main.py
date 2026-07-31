@@ -239,9 +239,30 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 _sessions: dict[str, dict] = {}
 
 
+def _with_applicant(rec: dict, *, include_resume: bool) -> dict:
+    """Joins in applicant_name/email (and optionally resume_text) from the
+    linked application record, if this session was scheduled from one —
+    read-time join instead of duplicating applicant data onto every
+    interview record."""
+    application_id = rec.get("application_id")
+    if not application_id:
+        return rec
+    app_rec = applications.get(application_id)
+    if app_rec is None:
+        return rec
+    rec = {
+        **rec,
+        "applicant_name": app_rec["applicant_name"],
+        "applicant_email": app_rec["applicant_email"],
+    }
+    if include_resume:
+        rec["resume_text"] = app_rec.get("resume_text", "")
+    return rec
+
+
 @app.get("/api/ops/sessions")
 async def ops_sessions(user: dict = Depends(auth.require_user)):
-    return store.list_all()
+    return [_with_applicant(rec, include_resume=False) for rec in store.list_all()]
 
 
 @app.get("/api/ops/sessions/{session_id}")
@@ -254,7 +275,7 @@ async def ops_session(session_id: str, user: dict = Depends(auth.require_user)):
         # pipeline STT/LLM/TTS calls this estimate is built from
         llm_model = config.DEEPSEEK_MODEL if config.LLM_PROVIDER == "deepseek" else config.OPENAI_MODEL
         rec = {**rec, "cost": costs.estimate(rec.get("usage", {}), llm_model, speech.ACTIVE_PROVIDER)}
-    return rec
+    return _with_applicant(rec, include_resume=True)
 
 
 def _create_interview_session(
@@ -304,6 +325,7 @@ def _create_interview_session(
         jd_text=jd_text.strip(),
         topics=resolved_topics,
         provider=resolved_provider,
+        application_id=application_id,
     )
     if application_id:
         applications.set_session_id(application_id, session_id)
@@ -397,13 +419,12 @@ async def list_postings(user: dict = Depends(auth.require_user)):
 async def request_posting(
     role: str = Form(...),
     notes: str = Form(""),
-    duration_min: int = Form(0),
     user: dict = Depends(auth.require_user),
 ):
     """Ops asks HR to open a posting for a role — no JD yet, just a heads-up."""
     if not role.strip():
         raise HTTPException(status_code=400, detail="Role is required")
-    return postings.request(role.strip(), notes.strip(), user["username"], duration_min)
+    return postings.request(role.strip(), notes.strip(), user["username"])
 
 
 @app.post("/api/postings/check-duplicate")
